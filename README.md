@@ -6,11 +6,12 @@ Shopify-застосунок для кастомізації товарів, щ�
 системам на LangGraph.
 
 ## Документи
-- `STRATEGY.md` — стратегія, фінансова модель, 5 фаз.
 - `CLAUDE.md` — гайд для розробки (стек, архітектура, інваріанти).
-- `_ops/OPERATING-MODEL.md` — операційна модель (Claude Code / Claude AI / Gemini).
-- `_ops/AI-SETUP-AND-PROMPTS.md` — налаштування Claude AI Project, NotebookLM, промпти.
-- `docs/DECISIONS.md` — журнал рішень.
+- `docs/prompts/` — спека Фази 0 та промпти.
+- `docs/DECISIONS.md` — журнал рішень (ADR-lite).
+
+> Стратегія та операційна модель (`STRATEGY.md`, `_ops/`) тримаються приватно,
+> поза цим публічним репозиторієм.
 
 ## Структура
 ```

@@ -2,6 +2,10 @@
 .env
 .env.local
 
+# Private business docs — тримаємо локально, НЕ у публічному репо
+STRATEGY.md
+_ops/
+
 # Python
 .venv/
 __pycache__/
