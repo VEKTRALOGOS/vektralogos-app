@@ -1,0 +1,22 @@
+# Secrets
+.env
+.env.local
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Node / client
+node_modules/
+dist/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Generated print artifacts
+*.pdf
+!examples/**/*.pdf
