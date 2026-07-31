@@ -100,6 +100,18 @@ def _cmd_propose_and_open_pr(args: argparse.Namespace) -> int:
     return 0 if state["status"] in ("applied", "rejected", "no_feedback") else 1
 
 
+def _cmd_managed_support(args: argparse.Namespace) -> int:
+    from .managed_support import CONTROL_QUESTIONS, estimate_cost
+
+    print(estimate_cost().summary())
+    print("\nКонтрольні питання (CMA vs Ф1):")
+    for i, q in enumerate(CONTROL_QUESTIONS, 1):
+        print(f"  {i}. {q}")
+    print("\n⚠️  Live-прогін CMA (платно) — лише після явного 'go' Антона з "
+          "підтвердженою сумою вище (спека Ф5 §2). Ця команда нічого не запускає.")
+    return 0
+
+
 def _cmd_evals(args: argparse.Namespace) -> int:
     from .evals import run_evals
 
@@ -197,6 +209,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Детерміновані evals якості тракту на фікстурах (Ф4b), без мережі/gs",
     )
     p_ev.set_defaults(func=_cmd_evals)
+
+    p_ms = sub.add_parser(
+        "managed-support",
+        help="Ф5a: оцінка вартості CMA-порівняння + контрольні питання (НЕ запускає live)",
+    )
+    p_ms.set_defaults(func=_cmd_managed_support)
 
     p_pr = sub.add_parser(
         "propose-and-open-pr",

@@ -15,6 +15,12 @@ from .preflight import PreflightReport, preflight
 from .preflight_agent import AgentResult, preflight_agent
 from .director_graph import run_director
 from .evals import run_evals
+from .managed_support import (
+    build_agent_config,
+    compare_answers,
+    estimate_cost,
+    run_managed_support,
+)
 from .preflight_graph import preflight_agent_graph
 from .reliability import BudgetExceeded, TokenBudget, budget_scope, retry
 from .product_graph import Preset, run_product_agent, run_product_with_approval
@@ -41,6 +47,10 @@ __all__ = [
     "Preset",
     "run_director",
     "run_evals",
+    "build_agent_config",
+    "compare_answers",
+    "estimate_cost",
+    "run_managed_support",
     "retry",
     "TokenBudget",
     "BudgetExceeded",
