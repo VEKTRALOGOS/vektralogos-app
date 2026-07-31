@@ -9,7 +9,7 @@ reportlab==4.5.1       # складання векторного PDF (криві
 
 # --- Canvas JSON: схема + structured output ---
 pydantic==2.13.3       # єдина схема: і валідація вводу, і формат structured output Claude
-anthropic==0.75.0      # Claude API, модель claude-opus-5 (prompt -> Canvas JSON)
+anthropic==0.120.2     # Claude API, claude-opus-5; 0.120+ для Managed Agents (Ф5)
 
 # --- Інфра ---
 python-dotenv==1.1.1   # завантаження .env (ANTHROPIC_API_KEY, PRINT_ICC_PROFILE)
