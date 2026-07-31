@@ -16,6 +16,7 @@ from .preflight_agent import AgentResult, preflight_agent
 from .prompt_to_canvas import prompt_to_canvas
 from .render import render
 from .schema import CanvasJSON
+from .support_bot import Retriever, ask, load_chunks
 from .templater import brief_to_canvas
 
 __all__ = [
@@ -29,4 +30,7 @@ __all__ = [
     "PreflightReport",
     "preflight_agent",
     "AgentResult",
+    "ask",
+    "Retriever",
+    "load_chunks",
 ]

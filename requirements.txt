@@ -14,5 +14,8 @@ anthropic==0.75.0      # Claude API, модель claude-opus-5 (prompt -> Canva
 # --- Інфра ---
 python-dotenv==1.1.1   # завантаження .env (ANTHROPIC_API_KEY, PRINT_ICC_PROFILE)
 
+# --- Support-бот (Фаза 1): RAG doc-QA по репо ---
+rank_bm25==0.2.2       # keyword-скоринг (BM25) по markdown-чанках; без векторної БД
+
 # --- Тести ---
 pytest==8.4.2          # по тесту на кожен інваріант (§4 CLAUDE.md)

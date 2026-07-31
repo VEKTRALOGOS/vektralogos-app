@@ -57,6 +57,13 @@ def _cmd_preflight_fix(args: argparse.Namespace) -> int:
     return 0 if result.status == "ok" else 1
 
 
+def _cmd_ask(args: argparse.Namespace) -> int:
+    from .support_bot import ask
+
+    print(ask(args.question, k=args.k))
+    return 0
+
+
 def _cmd_prompt(args: argparse.Namespace) -> int:
     # Ліниво: тягне anthropic лише для цього шляху.
     from .brief import prompt_to_brief
@@ -106,6 +113,11 @@ def main(argv: list[str] | None = None) -> int:
     p_fix.add_argument("spec", help="Шлях до Canvas JSON")
     p_fix.add_argument("-o", "--output", help="Куди зберегти виправлений Canvas JSON")
     p_fix.set_defaults(func=_cmd_preflight_fix)
+
+    p_ask = sub.add_parser("ask", help="Support-бот: питання про проєкт (RAG по доці репо)")
+    p_ask.add_argument("question", help="Питання українською/іншою мовою")
+    p_ask.add_argument("-k", type=int, default=5, help="Скільки чанків у контекст (дефолт 5)")
+    p_ask.set_defaults(func=_cmd_ask)
 
     # Підхопити .env (PRINT_ICC_PROFILE тощо) для обох команд.
     from dotenv import load_dotenv
