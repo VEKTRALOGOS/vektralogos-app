@@ -1,6 +1,6 @@
 # Vektralogos — Тестові промпти для Claude-виклику (Фаза 0)
 
-**Призначення:** валідація виклику §5.4 зі спеки `VEKTRALOGOS_SPEC_Phase0-PDF-Pipeline_v1.0_2026-07-31.md`
+**Призначення:** валідація виклику §5.1 зі спеки `../specs/VEKTRALOGOS_SPEC_Phase0-PDF-Pipeline_v1.1_2026-07-31.md`
 проти output schema §5.3. Acceptance criteria §7, пункт «10 тестових промптів».
 **Дата:** 2026-07-31
 

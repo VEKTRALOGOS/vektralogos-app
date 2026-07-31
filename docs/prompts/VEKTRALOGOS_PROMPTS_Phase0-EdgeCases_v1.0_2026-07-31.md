@@ -1,6 +1,6 @@
 # Vektralogos — Edge-case варіанти system prompt (Фаза 0)
 
-**Базується на:** `VEKTRALOGOS_SPEC_Phase0-PDF-Pipeline_v1.0_2026-07-31.md` §5.2
+**Базується на:** `../specs/VEKTRALOGOS_SPEC_Phase0-PDF-Pipeline_v1.1_2026-07-31.md` §5.1
 + результатах промптів #3, #6, #7, #8 з `VEKTRALOGOS_PROMPTS_Phase0-TestPrompts_v1.0_2026-07-31.md`.
 **Статус:** не блокує мердж Фази 0, але закриває питання з попереднього рев'ю.
 **Дата:** 2026-07-31
