@@ -42,6 +42,21 @@ def _cmd_preflight(args: argparse.Namespace) -> int:
     return 0 if report.ok else 1
 
 
+def _cmd_preflight_fix(args: argparse.Namespace) -> int:
+    from .preflight_agent import preflight_agent
+
+    with open(args.spec, "r", encoding="utf-8") as fh:
+        spec = CanvasJSON.model_validate_json(fh.read())
+    result = preflight_agent(spec)
+    print(f"Агент: status={result.status}, ітерацій={result.iterations}")
+    _print_report(result.report)
+    if args.output:
+        with open(args.output, "w", encoding="utf-8") as fh:
+            fh.write(result.spec.model_dump_json(indent=2))
+        print(f"Виправлений Canvas JSON -> {args.output}")
+    return 0 if result.status == "ok" else 1
+
+
 def _cmd_prompt(args: argparse.Namespace) -> int:
     # Ліниво: тягне anthropic лише для цього шляху.
     from .brief import prompt_to_brief
@@ -83,6 +98,14 @@ def main(argv: list[str] | None = None) -> int:
     p_pre.add_argument("spec", help="Шлях до Canvas JSON")
     p_pre.add_argument("--no-render", action="store_true", help="Не рендерити PDF — перевіряти лише спеку")
     p_pre.set_defaults(func=_cmd_preflight)
+
+    p_fix = sub.add_parser(
+        "preflight-fix",
+        help="Прогнати preflight-агента (issue -> fix -> re-check) і зберегти виправлений spec",
+    )
+    p_fix.add_argument("spec", help="Шлях до Canvas JSON")
+    p_fix.add_argument("-o", "--output", help="Куди зберегти виправлений Canvas JSON")
+    p_fix.set_defaults(func=_cmd_preflight_fix)
 
     # Підхопити .env (PRINT_ICC_PROFILE тощо) для обох команд.
     from dotenv import load_dotenv
