@@ -57,3 +57,11 @@
 - **2026-07-31 · Preflight-функція і FOGRA39 ICC — відкладено в кінець Фази 0.**
   Рішення Антона. `cmyk.py` уже підтримує ICC через `PRINT_ICC_PROFILE`; сам
   профіль і preflight `{ok, issues}` додамо перед мерджем.
+
+- **2026-07-31 · FOGRA39 ICC — підключено (ISO Coated v2, ECI).** Профіль
+  `ISOcoated_v2_eci.icc` (характеризація FOGRA39) з офіційного пакета ECI
+  (`eci_offset_2009.zip`). `render()` тепер дає PDF/X-3 з OutputIntent на цьому
+  профілі. Бінарник НЕ в репо (тримаємо без важких асетів) — `make fetch-icc`
+  качає локально, шлях у `.env` (`PRINT_ICC_PROFILE`), `server/icc/*.icc`
+  в `.gitignore`. Потрібен gs-флаг `--permit-file-read` (dSAFER блокує читання
+  ICC із PDFX_def.ps). Preflight `{ok, issues}` — усе ще відкладено.

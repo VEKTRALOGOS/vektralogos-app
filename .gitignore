@@ -24,3 +24,6 @@ dist/
 # Generated print artifacts
 *.pdf
 !examples/**/*.pdf
+
+# ICC profiles — локально, не в публічному репо (fetch: `make fetch-icc`)
+server/icc/*.icc

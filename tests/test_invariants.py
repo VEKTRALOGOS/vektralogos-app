@@ -127,7 +127,10 @@ def test_image_missing_photo_zone_flag_is_rejected():
 
 
 @pytest.mark.skipif(shutil.which("gs") is None, reason="Ghostscript не встановлено")
-def test_render_output_is_cmyk(hello_spec: CanvasJSON):
+def test_render_output_is_cmyk(hello_spec: CanvasJSON, monkeypatch):
+    # Детерміновано перевіряємо БАЗОВИЙ (без ICC) шлях — незалежно від того,
+    # чи заданий PRINT_ICC_PROFILE у оточенні (там був би PDF/X з ICCBased).
+    monkeypatch.delenv("PRINT_ICC_PROFILE", raising=False)
     pdf = render(hello_spec)
     assert pdf.startswith(b"%PDF")
     content = _decompressed_streams(pdf)
@@ -136,3 +139,23 @@ def test_render_output_is_cmyk(hello_spec: CanvasJSON):
     assert not re.search(rb"\brg[\r\n]", content), "У CMYK-файлі не має лишатися RGB (op `rg`)"
     # І текст усе ще у кривих після gs.
     assert b"/FontFile" not in pdf
+
+
+ICC_FOGRA39 = os.path.join(
+    os.path.dirname(__file__), "..", "server", "icc", "ISOcoated_v2_eci.icc"
+)
+
+
+@pytest.mark.skipif(shutil.which("gs") is None, reason="Ghostscript не встановлено")
+@pytest.mark.skipif(
+    not os.path.exists(ICC_FOGRA39), reason="ICC не завантажено (make fetch-icc)"
+)
+def test_render_with_icc_is_pdfx(hello_spec: CanvasJSON):
+    from server.cmyk import to_cmyk_pdf
+
+    pdf = to_cmyk_pdf(render_vector_pdf(hello_spec), icc_profile=ICC_FOGRA39)
+    assert pdf.startswith(b"%PDF")
+    # PDF/X-3 з output intent на FOGRA39.
+    assert b"GTS_PDFX" in pdf, "Має бути PDF/X"
+    assert b"OutputIntent" in pdf and b"DestOutputProfile" in pdf, "Має бути OutputIntent з ICC"
+    assert b"FOGRA39" in pdf

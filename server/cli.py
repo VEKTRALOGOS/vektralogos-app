@@ -60,6 +60,11 @@ def main(argv: list[str] | None = None) -> int:
     p_prompt.add_argument("--spec-out", help="Куди зберегти згенерований Canvas JSON")
     p_prompt.set_defaults(func=_cmd_prompt)
 
+    # Підхопити .env (PRINT_ICC_PROFILE тощо) для обох команд.
+    from dotenv import load_dotenv
+
+    load_dotenv()
+
     args = parser.parse_args(argv)
     return args.func(args)
 

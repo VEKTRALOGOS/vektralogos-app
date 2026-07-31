@@ -1,4 +1,7 @@
-.PHONY: venv install render prompt test clean
+.PHONY: venv install render prompt test clean fetch-icc
+
+ICC_URL  := https://eci.org/lib/exe/eci_offset_2009.zip
+ICC_FILE := server/icc/ISOcoated_v2_eci.icc
 
 VENV ?= .venv
 PY   := $(VENV)/bin/python
@@ -20,6 +23,16 @@ render:
 # prompt -> Canvas JSON -> print.pdf. Приклад: make prompt PROMPT="візитка кав'ярні"
 prompt:
 	$(PY) -m server.cli prompt "$(PROMPT)" -o $(OUT) --spec-out $(OUT).json
+
+# Завантажити FOGRA39 ICC (ISO Coated v2, ECI) — локально, не в репо.
+fetch-icc:
+	@mkdir -p server/icc
+	@echo "Downloading ECI offset 2009 (ISO Coated v2 / FOGRA39)…"
+	curl -sL -o /tmp/eci_offset_2009.zip $(ICC_URL)
+	unzip -o -j /tmp/eci_offset_2009.zip "ECI_Offset_2009/ISOcoated_v2_eci.icc" -d server/icc
+	rm -f /tmp/eci_offset_2009.zip
+	@echo "Done: $(ICC_FILE)"
+	@echo "Тепер додай у .env:  PRINT_ICC_PROFILE=$(CURDIR)/$(ICC_FILE)"
 
 test:
 	$(PY) -m pytest -q

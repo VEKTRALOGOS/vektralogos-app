@@ -100,6 +100,9 @@ def to_cmyk_pdf(
                     )
                 )
             cmd += [
+                # -dSAFER (типово у gs 10) блокує читання ICC із PDFX_def.ps —
+                # явно дозволяємо читати саме цей профіль.
+                f"--permit-file-read={icc}",
                 "-dPDFX",
                 "-dOverrideICC=true",
                 f"-sOutputICCProfile={icc}",
