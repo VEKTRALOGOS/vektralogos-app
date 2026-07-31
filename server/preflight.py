@@ -33,6 +33,11 @@ class PreflightIssue:
     level: Level
     code: str
     message: str
+    # Індекс елемента в spec.elements, якщо issue стосується конкретного елемента
+    # (low_dpi/out_of_media/image_unreadable). None — для issue рівня полотна/PDF
+    # (bleed_too_small/rgb_in_print/no_pdfx_intent/not_pdf). Машинне поле для
+    # агента (Фаза 1): не парсити індекс регексом з людського `message`.
+    element_index: int | None = None
 
 
 @dataclass
@@ -44,7 +49,12 @@ class PreflightReport:
         return {
             "ok": self.ok,
             "issues": [
-                {"level": i.level, "code": i.code, "message": i.message}
+                {
+                    "level": i.level,
+                    "code": i.code,
+                    "message": i.message,
+                    "element_index": i.element_index,
+                }
                 for i in self.issues
             ],
         }
@@ -129,6 +139,7 @@ def preflight(
                         "info",
                         "image_unreadable",
                         f"elements[{idx}]: не вдалося прочитати растр '{el.src}' — DPI не перевірено",
+                        element_index=idx,
                     )
                 )
             else:
@@ -143,6 +154,7 @@ def preflight(
                             "low_dpi",
                             f"elements[{idx}]: фото-зона ~{eff:.0f} DPI < {min_dpi} "
                             f"({px_w}×{px_h}px на {el.width_mm}×{el.height_mm}мм)",
+                            element_index=idx,
                         )
                     )
 
@@ -162,6 +174,7 @@ def preflight(
                     "out_of_media",
                     f"elements[{idx}] ({el.type}) виходить за медіабокс "
                     f"[{min_x}..{max_x}]×[{min_y}..{max_y}] мм",
+                    element_index=idx,
                 )
             )
 
