@@ -11,6 +11,7 @@
 """
 
 from .brief import DesignBrief, prompt_to_brief
+from .preflight import PreflightReport, preflight
 from .prompt_to_canvas import prompt_to_canvas
 from .render import render
 from .schema import CanvasJSON
@@ -23,4 +24,6 @@ __all__ = [
     "prompt_to_brief",
     "brief_to_canvas",
     "prompt_to_canvas",
+    "preflight",
+    "PreflightReport",
 ]

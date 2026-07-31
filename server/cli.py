@@ -9,8 +9,17 @@ from __future__ import annotations
 import argparse
 import sys
 
+from .preflight import preflight
 from .render import render
 from .schema import CanvasJSON
+
+
+def _print_report(report) -> None:
+    mark = "✅ OK" if report.ok else "❌ НЕ ГОТОВО"
+    print(f"Preflight: {mark} ({len(report.issues)} зауважень)")
+    for i in report.issues:
+        icon = {"error": "❌", "warn": "⚠️ ", "info": "ℹ️ "}[i.level]
+        print(f"  {icon} [{i.code}] {i.message}")
 
 
 def _cmd_render(args: argparse.Namespace) -> int:
@@ -20,7 +29,17 @@ def _cmd_render(args: argparse.Namespace) -> int:
     with open(args.output, "wb") as fh:
         fh.write(pdf)
     print(f"OK: {args.spec} -> {args.output} ({len(pdf)} байт)")
+    _print_report(preflight(spec, pdf))
     return 0
+
+
+def _cmd_preflight(args: argparse.Namespace) -> int:
+    with open(args.spec, "r", encoding="utf-8") as fh:
+        spec = CanvasJSON.model_validate_json(fh.read())
+    pdf = render(spec) if not args.no_render else None
+    report = preflight(spec, pdf)
+    _print_report(report)
+    return 0 if report.ok else 1
 
 
 def _cmd_prompt(args: argparse.Namespace) -> int:
@@ -59,6 +78,11 @@ def main(argv: list[str] | None = None) -> int:
     p_prompt.add_argument("--brief-out", help="Куди зберегти DesignBrief від LLM")
     p_prompt.add_argument("--spec-out", help="Куди зберегти згенерований Canvas JSON")
     p_prompt.set_defaults(func=_cmd_prompt)
+
+    p_pre = sub.add_parser("preflight", help="Перевірити Canvas JSON (+ рендер) на придатність до друку")
+    p_pre.add_argument("spec", help="Шлях до Canvas JSON")
+    p_pre.add_argument("--no-render", action="store_true", help="Не рендерити PDF — перевіряти лише спеку")
+    p_pre.set_defaults(func=_cmd_preflight)
 
     # Підхопити .env (PRINT_ICC_PROFILE тощо) для обох команд.
     from dotenv import load_dotenv
