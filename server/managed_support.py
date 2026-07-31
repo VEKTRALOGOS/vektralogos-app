@@ -199,21 +199,24 @@ def run_managed_support(
             "онови anthropic SDK до CMA-версії, і виклич з allow_live=True."
         )
 
+    import uuid
+
     import anthropic
 
     client = anthropic.Anthropic()
     agent = client.beta.agents.create(**build_agent_config())
     environment = client.beta.environments.create(
-        name="vektralogos-support", config={"type": "cloud", "networking": {"type": "unrestricted"}},
+        name=f"vektralogos-support-{uuid.uuid4().hex[:8]}",
+        config={"type": "cloud", "networking": {"type": "unrestricted"}},
+    )
+    # ОДНА сесія з примонтованим репо на всі питання (дешевше, § оцінки вартості).
+    session = client.beta.sessions.create(
+        agent={"type": "agent", "id": agent.id, "version": agent.version},
+        environment_id=environment.id,
+        resources=session_resources(token=github_token),
     )
 
     def _answer_via_session(question: str) -> str:
-        session = client.beta.sessions.create(
-            agent={"type": "agent", "id": agent.id, "version": agent.version},
-            environment_id=environment.id,
-            resources=session_resources(token=github_token),
-        )
-        # stream-first, потім надсилаємо питання (CMA client-pattern)
         parts: list[str] = []
         with client.beta.sessions.events.stream(session_id=session.id) as stream:
             client.beta.sessions.events.send(
@@ -234,4 +237,13 @@ def run_managed_support(
         return compare_answers(_answer_via_session, questions=questions)
     finally:
         if do_teardown:
-            teardown(client, agent.id)  # §2.3 — не лишаємо ресурс працювати мовчки
+            # §2.3 — прибираємо створені ресурси, щоб нічого не тарифікувалось мовчки.
+            try:
+                client.beta.sessions.archive(session.id)
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                client.beta.environments.delete(environment.id)
+            except Exception:  # noqa: BLE001
+                pass
+            teardown(client, agent.id)
