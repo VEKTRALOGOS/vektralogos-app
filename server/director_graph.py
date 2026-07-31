@@ -33,6 +33,7 @@ from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, ConfigDict
 
 from .product_graph import FeedbackItem, load_feedback, run_product_agent
+from .reliability import account, retry
 from .support_bot import ask
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -117,10 +118,18 @@ def _default_marketing(feedback: list[FeedbackItem], metrics: dict | None) -> di
 
     tags = sorted({t for item in feedback for t in item["tags"]})
     client = anthropic.Anthropic()
-    resp = client.messages.create(
-        model=MODEL, max_tokens=500, system=_MARKETING_SYSTEM,
-        messages=[{"role": "user", "content": f"Теги скарг: {', '.join(tags)}"}],
-    )
+
+    def _call():
+        r = client.messages.create(
+            model=MODEL, max_tokens=500, system=_MARKETING_SYSTEM,
+            messages=[{"role": "user", "content": f"Теги скарг: {', '.join(tags)}"}],
+        )
+        account(r)  # per-run token budget (Ф4b)
+        return r
+
+    transient = (anthropic.APIConnectionError, anthropic.APITimeoutError,
+                 anthropic.RateLimitError, anthropic.InternalServerError)
+    resp = retry(_call, attempts=3, exceptions=transient)
     draft = "".join(b.text for b in resp.content if b.type == "text").strip()
     return {"status": "ok", "draft": draft}
 

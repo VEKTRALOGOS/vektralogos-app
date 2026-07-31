@@ -40,6 +40,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from .brief import DesignBrief, BriefTextElement, LayoutHint
 from .preflight_agent import AgentResult
 from .preflight_graph import preflight_agent_graph
+from .reliability import account, retry
 from .render import render
 from .schema import CanvasJSON
 from .templater import brief_to_canvas
@@ -187,13 +188,22 @@ def _default_generate(plan: str, feedback: list[FeedbackItem]) -> Preset:
     all_tags = sorted({t for item in feedback for t in item["tags"]})
     user = f"План:\n{plan}\n\nТеги скарг: {', '.join(all_tags)}"
     client = anthropic.Anthropic()
-    response = client.beta.messages.parse(
-        model=MODEL,
-        max_tokens=2000,
-        system=_GEN_SYSTEM,
-        messages=[{"role": "user", "content": user}],
-        output_format=Preset,
-    )
+
+    def _call():
+        resp = client.beta.messages.parse(
+            model=MODEL,
+            max_tokens=2000,
+            system=_GEN_SYSTEM,
+            messages=[{"role": "user", "content": user}],
+            output_format=Preset,
+        )
+        account(resp)  # per-run token budget (Ф4b), no-op без активного бюджета
+        return resp
+
+    # Обмежені ретраї на транзієнтний збій API (Ф4b).
+    transient = (anthropic.APIConnectionError, anthropic.APITimeoutError,
+                 anthropic.RateLimitError, anthropic.InternalServerError)
+    response = retry(_call, attempts=3, exceptions=transient)
     if response.stop_reason == "refusal":
         raise RuntimeError(f"Модель відмовила згенерувати пресет: {getattr(response, 'stop_details', None)}")
     preset = response.parsed_output
@@ -282,8 +292,6 @@ def build_product_graph(
     (interrupt_before) → open_pr | finalize_rejected` з трейсом і governance.
     За замовчуванням (False) — поведінка Ф2b без змін.
     """
-    import os
-
     out_path = Path(out_dir)
     _pr_creator = pr_creator if pr_creator is not None else _default_open_pr
 
