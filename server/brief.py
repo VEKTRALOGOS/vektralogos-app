@@ -114,7 +114,8 @@ def prompt_to_brief(prompt: str, *, max_tokens: int = 4000) -> DesignBrief:
     import anthropic
 
     client = anthropic.Anthropic()
-    response = client.messages.parse(
+    # structured output через parse-хелпер живе у beta-неймспейсі (anthropic 0.75)
+    response = client.beta.messages.parse(
         model=MODEL,
         max_tokens=max_tokens,
         system=SYSTEM,
