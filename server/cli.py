@@ -64,6 +64,23 @@ def _cmd_ask(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_product_run(args: argparse.Namespace) -> int:
+    from .product_graph import run_product_agent
+
+    state = run_product_agent(out_dir=args.output)
+    print(f"Product-агент: status={state['status']}")
+    if state.get("plan"):
+        print(f"План: {state['plan']}")
+    if state["status"] == "ok":
+        print(f"Пресет + опис -> {state['diff_path']} (та .md поруч)")
+    elif state["status"] == "no_feedback":
+        print("Відгуків не знайдено — пресет не генерувався (чесна зупинка).")
+    else:
+        pr = state.get("preflight_result")
+        print(f"Потрібна людина: preflight={pr.status if pr else '—'}")
+    return 0 if state["status"] in ("ok", "no_feedback") else 1
+
+
 def _cmd_prompt(args: argparse.Namespace) -> int:
     # Ліниво: тягне anthropic лише для цього шляху.
     from .brief import prompt_to_brief
@@ -118,6 +135,13 @@ def main(argv: list[str] | None = None) -> int:
     p_ask.add_argument("question", help="Питання українською/іншою мовою")
     p_ask.add_argument("-k", type=int, default=5, help="Скільки чанків у контекст (дефолт 5)")
     p_ask.set_defaults(func=_cmd_ask)
+
+    p_prod = sub.add_parser(
+        "product-run",
+        help="Product-агент (Ф2b): відгуки -> план -> пресет -> preflight -> diff (без PR)",
+    )
+    p_prod.add_argument("-o", "--output", default="presets", help="Куди писати пресет+опис")
+    p_prod.set_defaults(func=_cmd_product_run)
 
     # Підхопити .env (PRINT_ICC_PROFILE тощо) для обох команд.
     from dotenv import load_dotenv
