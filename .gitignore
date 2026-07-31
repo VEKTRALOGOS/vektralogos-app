@@ -25,5 +25,8 @@ dist/
 *.pdf
 !examples/**/*.pdf
 
+# Product-агент (Ф2b): згенеровані пресети — diff на ревʼю, не автокоміт
+presets/
+
 # ICC profiles — локально, не в публічному репо (fetch: `make fetch-icc`)
 server/icc/*.icc
