@@ -33,6 +33,7 @@ from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, ConfigDict
 
 from .product_graph import FeedbackItem, load_feedback, run_product_agent
+from .support_bot import ask
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _DEFAULT_METRICS_PATH = "docs/research/fixtures/metrics.json"
@@ -92,6 +93,48 @@ def validate_demand(metrics: Metrics, feedback: list[FeedbackItem]) -> bool:
     return metrics.waitlist_signups > 0 or len(feedback) > 0
 
 
+# --- воркери-скелети 3b (тонкі, повна автономія — Ф5) ------------------------
+
+MODEL = "claude-opus-5"  # дефолт проєкту (DECISIONS.md)
+
+_MARKETING_SYSTEM = """Ти — маркетолог Shopify-застосунку Vektralogos (друкарський
+вектор: CMYK, 300 DPI, кирилиця в кривих). На вхід — теги скарг клієнтів
+конкурентів. Напиши ОДИН короткий чернетковий фрагмент для лістингу App Store
+(2-3 речення), що прямо б'є в ці болі. Без брендів третіх осіб. Тільки текст."""
+
+
+def _default_marketing(feedback: list[FeedbackItem], metrics: dict | None) -> dict:
+    """Тонкий LLM-вузол: чернетка маркетинг-контенту (claude-opus-5, plain text)."""
+    import os
+
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        raise RuntimeError("ANTHROPIC_API_KEY не заданий (додай у .env)")
+
+    import anthropic
+
+    tags = sorted({t for item in feedback for t in item["tags"]})
+    client = anthropic.Anthropic()
+    resp = client.messages.create(
+        model=MODEL, max_tokens=500, system=_MARKETING_SYSTEM,
+        messages=[{"role": "user", "content": f"Теги скарг: {', '.join(tags)}"}],
+    )
+    draft = "".join(b.text for b in resp.content if b.type == "text").strip()
+    return {"status": "ok", "draft": draft}
+
+
+# Питання-заглушка для онбордингу: Sales/Support відповідає по доці (retrieval Ф1).
+_SUPPORT_QUESTION = "Як Vektralogos гарантує друкарську якість (вектор, CMYK, 300 DPI, кирилиця)?"
+
+
+def _default_sales_support(feedback: list[FeedbackItem]) -> dict:
+    """Переюз retrieval Ф1 support-бота (ask) — доко-обґрунтована відповідь."""
+    answer = ask(_SUPPORT_QUESTION)
+    return {"status": "ok", "answer": answer, "question": _SUPPORT_QUESTION}
+
+
 # --- граф --------------------------------------------------------------------
 
 
@@ -100,18 +143,24 @@ def build_director_graph(
     metrics_path: str = _DEFAULT_METRICS_PATH,
     reviews_glob: str = _DEFAULT_REVIEWS_GLOB,
     root: Path = _REPO_ROOT,
-    enabled_workers: tuple[str, ...] = ("product",),
+    enabled_workers: tuple[str, ...] = ("product", "marketing", "sales_support"),
     product_runner: Callable[..., dict] | None = None,
+    marketing_runner: Callable[..., dict] | None = None,
+    sales_support_runner: Callable[..., dict] | None = None,
     checkpointer: MemorySaver | None = None,
 ):
     """Компільований Director-граф. Сіми (runners/шляхи) інжектуються для тестів.
 
-    `enabled_workers` — які воркери у fan-out. 3a: ("product",). 3b: усі три.
-    `product_runner=None` -> дефолт `run_product_agent` (граф 2b), резолвиться
-    ліниво (через модульний символ), щоб лишатись патчабельним у тестах.
+    `enabled_workers` — які воркери у fan-out (виконуються ПАРАЛЕЛЬНО, §2.1).
+    Дефолт — усі три (повний Ф3). Runners=None резолвляться ліниво до модульних
+    дефолтів (щоб лишатись патчабельними у тестах).
     """
     worker_nodes = [_WORKER_NODE[w] for w in enabled_workers]
     _product_runner = product_runner if product_runner is not None else run_product_agent
+    _marketing_runner = marketing_runner if marketing_runner is not None else _default_marketing
+    _sales_support_runner = (
+        sales_support_runner if sales_support_runner is not None else _default_sales_support
+    )
 
     def validate_demand_node(state: DirectorState) -> dict:
         metrics = load_metrics(metrics_path, root)
@@ -133,6 +182,13 @@ def build_director_graph(
             "status": result["status"], "diff_path": result.get("diff_path"),
         }}}
 
+    def marketing_worker(state: DirectorState) -> dict:
+        return {"worker_results": {"marketing": _marketing_runner(
+            state["feedback"], state["metrics"])}}
+
+    def sales_support_worker(state: DirectorState) -> dict:
+        return {"worker_results": {"sales_support": _sales_support_runner(state["feedback"])}}
+
     def collect_results(state: DirectorState) -> dict:
         # Fan-in: reducer уже злив воркерів. Виводимо агрегований статус.
         statuses = [w.get("status") for w in state["worker_results"].values()]
@@ -145,9 +201,16 @@ def build_director_graph(
     def finalize_no_signal(state: DirectorState) -> dict:
         return {"status": "no_signal"}
 
+    _worker_fns = {
+        "product_worker": product_worker,
+        "marketing_worker": marketing_worker,
+        "sales_support_worker": sales_support_worker,
+    }
+
     g = StateGraph(DirectorState)
     g.add_node("validate_demand", validate_demand_node)
-    g.add_node("product_worker", product_worker)
+    for n in worker_nodes:  # реєструємо лише увімкнені воркери
+        g.add_node(n, _worker_fns[n])
     g.add_node("collect_results", collect_results)
     g.add_node("finalize", finalize)
     g.add_node("finalize_no_signal", finalize_no_signal)
@@ -170,14 +233,17 @@ def run_director(
     metrics_path: str = _DEFAULT_METRICS_PATH,
     reviews_glob: str = _DEFAULT_REVIEWS_GLOB,
     root: Path = _REPO_ROOT,
-    enabled_workers: tuple[str, ...] = ("product",),
+    enabled_workers: tuple[str, ...] = ("product", "marketing", "sales_support"),
     product_runner: Callable[..., dict] | None = None,
+    marketing_runner: Callable[..., dict] | None = None,
+    sales_support_runner: Callable[..., dict] | None = None,
     thread_id: str = "director",
 ) -> DirectorState:
     """Ганяє Director-граф і повертає фінальний стан."""
     app = build_director_graph(
         metrics_path=metrics_path, reviews_glob=reviews_glob, root=root,
         enabled_workers=enabled_workers, product_runner=product_runner,
+        marketing_runner=marketing_runner, sales_support_runner=sales_support_runner,
     )
     init: DirectorState = {
         "metrics": None, "feedback": [], "signal": None,
