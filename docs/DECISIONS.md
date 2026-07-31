@@ -122,3 +122,14 @@
   спеки).** SDK: `anthropic` 0.75→0.120.2 (CMA); Ф0–Ф4 не зачеплені (90/90).
   Деталі — `docs/specs/VEKTRALOGOS_SPEC_Phase5-ManagedAgents_v1.0_2026-07-31.md`,
   `server/managed_support.py`.
+
+- **2026-07-31 · Ф5b — Ops-агент: host-side custom tools + cron (код без live).**
+  Друкарський тракт (preflight/render) потребує нашого коду+Ghostscript, яких
+  немає в cloud-пісочниці CMA → віддаємо їх агенту як host-side custom tools
+  (CMA Pattern 9): агент кличе `run_preflight`/`render_pdf`, наш `dispatch_custom_tool`
+  виконує `preflight_agent_graph`/`render` у нас і повертає результат — переюз
+  Ф2/Ф0 без переписування під пісочницю. `deployments.create` (cron, дефолт пн
+  06:00) — автономний ops-каданс. **Live НЕ запускали** (рішення Антона: код без
+  live; cron тарифікується безстроково — потрібен окремий «go» + план вимкнення).
+  `teardown_deployment` (pause→archive) обов'язковий. `server/managed_ops.py`,
+  10 офлайн-тестів. Цим Фаза 5 і вся навчальна програма STRATEGY §3 завершені.

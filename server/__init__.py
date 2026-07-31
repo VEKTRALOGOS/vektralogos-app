@@ -15,6 +15,12 @@ from .preflight import PreflightReport, preflight
 from .preflight_agent import AgentResult, preflight_agent
 from .director_graph import run_director
 from .evals import run_evals
+from .managed_ops import (
+    build_deployment_config,
+    build_ops_agent_config,
+    dispatch_custom_tool,
+    teardown_deployment,
+)
 from .managed_support import (
     build_agent_config,
     compare_answers,
@@ -51,6 +57,10 @@ __all__ = [
     "compare_answers",
     "estimate_cost",
     "run_managed_support",
+    "build_ops_agent_config",
+    "dispatch_custom_tool",
+    "build_deployment_config",
+    "teardown_deployment",
     "retry",
     "TokenBudget",
     "BudgetExceeded",

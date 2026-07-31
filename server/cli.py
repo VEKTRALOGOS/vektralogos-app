@@ -112,6 +112,20 @@ def _cmd_managed_support(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_managed_ops(args: argparse.Namespace) -> int:
+    from .managed_ops import CUSTOM_TOOLS, build_deployment_config
+
+    dep = build_deployment_config(agent_id="<agent_id>", environment_id="<env_id>")
+    print("Ф5b Ops-агент (host-side custom tools + scheduled deployment):")
+    print(f"  custom tools: {[t['name'] for t in CUSTOM_TOOLS]}")
+    print(f"  cron: {dep['schedule']['expression']} ({dep['schedule']['timezone']})")
+    print(f"  kickoff: {dep['initial_events'][0]['content'][0]['text']}")
+    print("\n⚠️  Scheduled deployment тарифікується БЕЗСТРОКОВО (спека §2.1). "
+          "Ця команда нічого не створює. Live — лише після окремого 'go' Антона "
+          "з планом вимкнення (teardown_deployment).")
+    return 0
+
+
 def _cmd_evals(args: argparse.Namespace) -> int:
     from .evals import run_evals
 
@@ -215,6 +229,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Ф5a: оцінка вартості CMA-порівняння + контрольні питання (НЕ запускає live)",
     )
     p_ms.set_defaults(func=_cmd_managed_support)
+
+    p_mo = sub.add_parser(
+        "managed-ops",
+        help="Ф5b: план Ops-агента (custom tools + cron deployment). НЕ створює нічого live",
+    )
+    p_mo.set_defaults(func=_cmd_managed_ops)
 
     p_pr = sub.add_parser(
         "propose-and-open-pr",
