@@ -81,6 +81,18 @@ def _cmd_product_run(args: argparse.Namespace) -> int:
     return 0 if state["status"] in ("ok", "no_feedback") else 1
 
 
+def _cmd_director_run(args: argparse.Namespace) -> int:
+    from .director_graph import run_director
+
+    state = run_director()
+    print(f"Director: status={state['status']}, signal={state['signal']}")
+    for name, res in (state.get("worker_results") or {}).items():
+        print(f"  воркер {name}: {res}")
+    if state["status"] == "no_signal":
+        print("Гейт validate_demand: сигналу нема (нема ні вейтлиста, ні відгуків).")
+    return 0 if state["status"] in ("ok", "no_signal") else 1
+
+
 def _cmd_prompt(args: argparse.Namespace) -> int:
     # Ліниво: тягне anthropic лише для цього шляху.
     from .brief import prompt_to_brief
@@ -142,6 +154,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_prod.add_argument("-o", "--output", default="presets", help="Куди писати пресет+опис")
     p_prod.set_defaults(func=_cmd_product_run)
+
+    p_dir = sub.add_parser(
+        "director-run",
+        help="Director-агент (Ф3): гейт спроса -> делегує воркерам -> агрегує",
+    )
+    p_dir.set_defaults(func=_cmd_director_run)
 
     # Підхопити .env (PRINT_ICC_PROFILE тощо) для обох команд.
     from dotenv import load_dotenv
