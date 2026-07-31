@@ -159,24 +159,32 @@ DEFAULT_PAPER = "a6"
 Закриває відкрите питання v1.0 §8.1 (розмір за замовчуванням) — **A6**,
 як і рекомендувалось.
 
-## 6. Acceptance criteria — оновлено проти v1.0 §7
+## 6. Acceptance criteria — статус (усі закриті)
 
-- [ ] Текст у вихідному PDF справді в кривих (fonttools outlines).
-- [ ] Вихідний PDF справді CMYK + ICC-профіль — **відкладено в кінець фази**
-      (`cmyk.py` вже підтримує `PRINT_ICC_PROFILE`, сам FOGRA39-профіль і
-      preflight `{ok, issues}` — перед мерджем, не перед першим прогоном).
-- [ ] Кирилиця (ї/є/ґ/і) коректна на всьому тракті — `examples/hello.json`
-      вже містить тестовий рядок «Ґудзик, їжак, єнот — 0123».
-- [ ] `image` без `is_photo_zone: true` — CanvasJSON не валідується (перевірка
-      на рівні Pydantic, `tests/test_invariants.py`).
-- [ ] `prompt_to_brief` на 10 тестових промптах
-      (`VEKTRALOGOS_PROMPTS_Phase0-TestPrompts`) повертає валідний DesignBrief
-      або контрольований `refusal`, ніколи не падає непередбачено.
-- [ ] `brief_to_canvas` на тому ж наборі — валідний CanvasJSON, який проходить
-      рендер без винятків (`tests/test_brief_templater.py`).
-- [ ] Шрифт `family` у `TextElement`, не оголошений у `canvas.fonts` —
-      `CanvasJSON.font_file()` кидає `KeyError` з переліком наявних шрифтів
-      (не мовчазний фолбек).
+- [x] ✅ Текст у вихідному PDF справді в кривих (fonttools outlines; тест:
+      немає операторів показу тексту / немає `/FontFile`).
+- [x] ✅ Вихідний PDF справді CMYK + ICC — **зроблено**. FOGRA39
+      (`ISOcoated_v2_eci.icc`, ECI) підключено, `render()` дає PDF/X-3 з
+      OutputIntent (`make fetch-icc`, `PRINT_ICC_PROFILE`).
+- [x] ✅ Кирилиця (ї/є/ґ/і) коректна — «Ґудзик, їжак, єнот» рендериться;
+      живий прогон #5 зберіг апостроф у «Кав'ярня Їжачок».
+- [x] ✅ `image` без `is_photo_zone: true` — CanvasJSON не валідується
+      (`tests/test_invariants.py`).
+- [x] ✅ `prompt_to_brief` на 10 промптах — **прогнано вживу (claude-opus-5)**:
+      усі 10 дали валідний DesignBrief, жодного краху. Критичні: #6 бренд
+      відсічено (порожній `text_elements`), #9 невідома дата не вигадана
+      (`content=""`, `assumed=true`), #10 name/title розділено без зміни
+      регістру. Гарнесс: `scripts/run_test_prompts.py`.
+- [x] ✅ `brief_to_canvas` — валідний CanvasJSON, рендериться без винятків
+      (`tests/test_brief_templater.py` + живий прогон).
+- [x] ✅ Невідомий `font` у `TextElement` — `CanvasJSON.font_file()` кидає
+      `KeyError` з переліком шрифтів (`tests/test_invariants.py`).
+
+**Додатково зроблено:** preflight-функція `{ok, issues}` (`server/preflight.py`,
+CLI `preflight`) — bleed / DPI фото-зон / RGB-у-друку / PDF-X intent / межі.
+Тестів усього: 22 passed.
+
+> Фаза 0 повністю закрита за критеріями. Гілка `feat/p0-pdf-pipeline` готова.
 
 ## 7. Рішення — закриті (архів v1.0 §8)
 
