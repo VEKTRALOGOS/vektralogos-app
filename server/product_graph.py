@@ -27,7 +27,9 @@ from __future__ import annotations
 
 import json
 import os
+import hashlib
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Literal, TypedDict
 
@@ -87,9 +89,14 @@ class ProductGraphState(TypedDict):
     feedback: list[FeedbackItem]
     plan: str | None
     generated_preset: dict | None
-    preflight_result: AgentResult | None
+    # Лише серіалізовний зріз результату preflight (не весь AgentResult з
+    # CanvasJSON) — щоб checkpoint MemorySaver не тягнув багаті типи (Ф4a).
+    preflight_result: dict | None
     diff_path: str | None
-    status: Literal["ok", "needs_human", "no_feedback"] | None
+    # Ф4 approval-хвіст (лишається None у режимі Ф2b без гейта):
+    approval: str | None  # "approve" | "reject", проставляється людиною через update_state
+    pr_url: str | None  # з open_pr після approve
+    status: Literal["ok", "needs_human", "no_feedback", "applied", "rejected"] | None
 
 
 # --- ingest_feedback (спека §2) ----------------------------------------------
@@ -209,6 +216,48 @@ def preset_to_sample_canvas(preset: Preset) -> CanvasJSON:
     return brief_to_canvas(brief, width_mm=90.0, height_mm=50.0)  # візитка
 
 
+# --- трейс + governance (Ф4a) ------------------------------------------------
+
+
+def _trace_step(trace_path: str | Path | None, node: str, status: str, **extra) -> None:
+    """Дописує крок у JSON-трейс прогону (traces/<thread_id>.json). No-op, якщо
+    трейс не увімкнено (режим Ф2b без гейта)."""
+    if trace_path is None:
+        return
+    p = Path(trace_path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    data = {"steps": []}
+    if p.exists():
+        data = json.loads(p.read_text(encoding="utf-8"))
+    step = {"node": node, "status": status, "ts": datetime.now(timezone.utc).isoformat()}
+    step.update(extra)
+    data.setdefault("steps", []).append(step)
+    p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _default_open_pr(preset: dict, diff_path: str, desc_path: str | Path) -> str:
+    """РЕАЛЬНЕ `gh pr create` ПІСЛЯ approve (спека §0, §2.1). Створює гілку,
+    комітить пресет (force-add, бо presets/ у .gitignore), пушить, відкриває PR.
+
+    Живий шлях лише через CLI `propose-and-open-pr` після явного approve —
+    у тестах інжектимо fake pr_creator, тут нічого не викликається.
+    """
+    import subprocess
+
+    name = preset["name"]
+    branch = f"preset/{name}"
+
+    def sh(cmd: list[str]) -> subprocess.CompletedProcess:
+        return subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+    sh(["git", "checkout", "-b", branch])
+    sh(["git", "add", "-f", str(diff_path), str(desc_path)])
+    sh(["git", "commit", "-m", f"preset: {name} (Product-агент, approved)"])
+    sh(["git", "push", "-u", "origin", branch])
+    result = sh(["gh", "pr", "create", "--fill", "--base", "main", "--head", branch])
+    return result.stdout.strip()
+
+
 # --- граф --------------------------------------------------------------------
 
 
@@ -220,33 +269,50 @@ def build_product_graph(
     generate: Callable[[str, list[FeedbackItem]], Preset] = _default_generate,
     preflight_runner: Callable[..., AgentResult] = preflight_agent_graph,
     renderer: Callable[[CanvasJSON], bytes] = render,
+    with_approval: bool = False,
+    pr_creator: Callable[..., str] | None = None,
+    trace_path: str | Path | None = None,
+    approver: str | None = None,
     checkpointer: MemorySaver | None = None,
 ):
     """Компільований Product-граф. Сіми (generate/preflight_runner/renderer/
-    out_dir) інжектуються для тестів; дефолти — реальні."""
+    out_dir) інжектуються для тестів; дефолти — реальні.
+
+    `with_approval=True` (Ф4a) додає хвіст `prepare_diff → approval_gate
+    (interrupt_before) → open_pr | finalize_rejected` з трейсом і governance.
+    За замовчуванням (False) — поведінка Ф2b без змін.
+    """
+    import os
+
     out_path = Path(out_dir)
+    _pr_creator = pr_creator if pr_creator is not None else _default_open_pr
 
     def ingest_feedback(state: ProductGraphState) -> dict:
-        return {"feedback": load_feedback(reviews_glob, root)}
+        fb = load_feedback(reviews_glob, root)
+        _trace_step(trace_path, "ingest_feedback", "ok")
+        return {"feedback": fb}
 
     def route_after_ingest(state: ProductGraphState) -> str:
         return "plan" if state["feedback"] else "finalize_no_feedback"
 
     def plan_node(state: ProductGraphState) -> dict:
+        _trace_step(trace_path, "plan", "ok")
         return {"plan": _build_plan(state["feedback"])}
 
     def generate_preset(state: ProductGraphState) -> dict:
         preset = generate(state["plan"], state["feedback"])
+        _trace_step(trace_path, "generate_preset", "ok")
         return {"generated_preset": preset.model_dump()}
 
     def run_preflight(state: ProductGraphState) -> dict:
         preset = Preset.model_validate(state["generated_preset"])
         sample = preset_to_sample_canvas(preset)
         result = preflight_runner(sample, renderer=renderer)  # делегує граф 2а
-        return {"preflight_result": result}
+        _trace_step(trace_path, "run_preflight", result.status)
+        return {"preflight_result": {"status": result.status, "iterations": result.iterations}}
 
     def route_after_preflight(state: ProductGraphState) -> str:
-        return "prepare_diff" if state["preflight_result"].status == "ok" else "finalize_needs_human"
+        return "prepare_diff" if state["preflight_result"]["status"] == "ok" else "finalize_needs_human"
 
     def prepare_diff(state: ProductGraphState) -> dict:
         preset = state["generated_preset"]
@@ -255,7 +321,7 @@ def build_product_graph(
         json_path = out_path / f"{name}.json"
         json_path.write_text(json.dumps(preset, ensure_ascii=False, indent=2), encoding="utf-8")
 
-        # Опис для майбутнього PR (заголовок + чому + джерела) — БЕЗ автостворення.
+        # Опис для PR (заголовок + чому + джерела).
         sources = "\n".join(
             f"- {f['source']}, {f['stars']}★, {f['date']} ({', '.join(f['tags'])})"
             for f in state["feedback"]
@@ -268,12 +334,45 @@ def build_product_graph(
             f"**Відгуки-джерела:**\n{sources}\n"
         )
         (out_path / f"{name}.md").write_text(desc, encoding="utf-8")
-        return {"diff_path": str(json_path), "status": "ok"}
+        _trace_step(trace_path, "prepare_diff", "ok")
+        # У режимі гейта фінальний статус ставлять open_pr/finalize_rejected.
+        return {"diff_path": str(json_path)} if with_approval else {
+            "diff_path": str(json_path), "status": "ok"
+        }
+
+    def approval_gate(state: ProductGraphState) -> dict:
+        # interrupt_before зупиняє граф ДО цього вузла; людина проставляє
+        # state["approval"] через update_state, далі граф відновлюється сюди.
+        decision = state.get("approval")
+        diff_path_v = state.get("diff_path")
+        diff_hash = None
+        if diff_path_v:
+            diff_hash = hashlib.sha256(Path(diff_path_v).read_bytes()).hexdigest()[:12]
+        who = approver or os.environ.get("USER") or "unknown"
+        status = "approved" if decision == "approve" else "rejected"
+        _trace_step(trace_path, "approval_gate", status, approver=who, diff_hash=diff_hash)
+        return {}
+
+    def route_after_gate(state: ProductGraphState) -> str:
+        return "open_pr" if state.get("approval") == "approve" else "finalize_rejected"
+
+    def open_pr(state: ProductGraphState) -> dict:
+        preset = state["generated_preset"]
+        url = _pr_creator(preset, state["diff_path"], out_path / f"{preset['name']}.md")
+        _trace_step(trace_path, "open_pr", "applied", pr_url=url)
+        return {"pr_url": url, "status": "applied"}
+
+    def finalize_rejected(state: ProductGraphState) -> dict:
+        # diff-файл НЕ видаляємо (§2.1) — лишається для ручного review/PR.
+        _trace_step(trace_path, "finalize_rejected", "rejected")
+        return {"status": "rejected"}
 
     def finalize_needs_human(state: ProductGraphState) -> dict:
+        _trace_step(trace_path, "finalize_needs_human", "needs_human")
         return {"status": "needs_human"}
 
     def finalize_no_feedback(state: ProductGraphState) -> dict:
+        _trace_step(trace_path, "finalize_no_feedback", "no_feedback")
         return {"status": "no_feedback"}
 
     g = StateGraph(ProductGraphState)
@@ -296,10 +395,26 @@ def build_product_graph(
         "run_preflight", route_after_preflight,
         {"prepare_diff": "prepare_diff", "finalize_needs_human": "finalize_needs_human"},
     )
-    g.add_edge("prepare_diff", END)
     g.add_edge("finalize_needs_human", END)
     g.add_edge("finalize_no_feedback", END)
 
+    if with_approval:
+        g.add_node("approval_gate", approval_gate)
+        g.add_node("open_pr", open_pr)
+        g.add_node("finalize_rejected", finalize_rejected)
+        g.add_edge("prepare_diff", "approval_gate")
+        g.add_conditional_edges(
+            "approval_gate", route_after_gate,
+            {"open_pr": "open_pr", "finalize_rejected": "finalize_rejected"},
+        )
+        g.add_edge("open_pr", END)
+        g.add_edge("finalize_rejected", END)
+        return g.compile(
+            checkpointer=checkpointer or MemorySaver(),
+            interrupt_before=["approval_gate"],  # human-in-the-loop (спека §2.2)
+        )
+
+    g.add_edge("prepare_diff", END)
     return g.compile(checkpointer=checkpointer or MemorySaver())
 
 
@@ -320,7 +435,72 @@ def run_product_agent(
     )
     init: ProductGraphState = {
         "feedback": [], "plan": None, "generated_preset": None,
-        "preflight_result": None, "diff_path": None, "status": None,
+        "preflight_result": None, "diff_path": None,
+        "approval": None, "pr_url": None, "status": None,
     }
     config = {"configurable": {"thread_id": thread_id}}
     return app.invoke(init, config=config)
+
+
+def run_product_with_approval(
+    *,
+    reviews_glob: str = _DEFAULT_REVIEWS_GLOB,
+    root: Path = _REPO_ROOT,
+    out_dir: str | Path = _DEFAULT_OUT_DIR,
+    decide: Callable[[str, str], str],
+    generate: Callable[[str, list[FeedbackItem]], Preset] | None = None,
+    preflight_runner: Callable[..., AgentResult] | None = None,
+    renderer: Callable[[CanvasJSON], bytes] | None = None,
+    pr_creator: Callable[..., str] | None = None,
+    approver: str | None = None,
+    thread_id: str = "product-approval",
+    traces_dir: str | Path = "traces",
+) -> ProductGraphState:
+    """Ганяє Product-граф з approval-гейтом (Ф4a), СИНХРОННО в одному процесі.
+
+    `decide(diff_text, desc_text) -> "approve"|"reject"` — рішення людини (CLI
+    показує diff і питає слово `approve`; тести інжектять фікс-рішення). Реальний
+    `gh pr create` — лише після `approve`. На `reject` diff-файл лишається (§2.1).
+    """
+    trace_path = Path(traces_dir) / f"{thread_id}.json"
+    trace_path.parent.mkdir(parents=True, exist_ok=True)
+    trace_path.write_text(
+        json.dumps({"thread_id": thread_id, "graph": "product", "steps": []},
+                   ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    kwargs: dict = dict(
+        reviews_glob=reviews_glob, root=root, out_dir=out_dir,
+        with_approval=True, trace_path=trace_path, approver=approver,
+    )
+    if generate is not None:
+        kwargs["generate"] = generate
+    if preflight_runner is not None:
+        kwargs["preflight_runner"] = preflight_runner
+    if renderer is not None:
+        kwargs["renderer"] = renderer
+    if pr_creator is not None:
+        kwargs["pr_creator"] = pr_creator
+    app = build_product_graph(**kwargs)
+
+    config = {"configurable": {"thread_id": thread_id}}
+    init: ProductGraphState = {
+        "feedback": [], "plan": None, "generated_preset": None,
+        "preflight_result": None, "diff_path": None,
+        "approval": None, "pr_url": None, "status": None,
+    }
+    app.invoke(init, config=config)
+
+    snap = app.get_state(config)
+    if snap.next and "approval_gate" in snap.next:
+        # Досягли гейта -> граф на паузі (interrupt_before). Питаємо людину.
+        _trace_step(trace_path, "approval_gate", "waiting")
+        preset = snap.values["generated_preset"]
+        diff_text = Path(snap.values["diff_path"]).read_text(encoding="utf-8")
+        desc_text = (Path(out_dir) / f"{preset['name']}.md").read_text(encoding="utf-8")
+        decision = decide(diff_text, desc_text)
+        app.update_state(config, {"approval": decision})
+        app.invoke(None, config=config)  # відновлюємо в тому ж процесі
+
+    return app.get_state(config).values

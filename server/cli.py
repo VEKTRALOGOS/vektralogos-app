@@ -81,6 +81,25 @@ def _cmd_product_run(args: argparse.Namespace) -> int:
     return 0 if state["status"] in ("ok", "no_feedback") else 1
 
 
+def _cmd_propose_and_open_pr(args: argparse.Namespace) -> int:
+    from .product_graph import run_product_with_approval
+
+    def decide(diff_text: str, desc_text: str) -> str:
+        print("\n=== ПРЕСЕТ (diff) ===\n" + diff_text)
+        print("\n=== ОПИС PR ===\n" + desc_text)
+        print("\n⚠️  Це створить РЕАЛЬНИЙ PR (gh pr create).")
+        ans = input("Введіть слово 'approve' для підтвердження (будь-що інше — reject): ")
+        return "approve" if ans.strip() == "approve" else "reject"
+
+    state = run_product_with_approval(out_dir=args.output, decide=decide)
+    print(f"\nСтатус: {state['status']}")
+    if state["status"] == "applied":
+        print(f"PR створено: {state.get('pr_url')}")
+    elif state["status"] == "rejected":
+        print(f"Відхилено. diff лишився на диску: {state.get('diff_path')}")
+    return 0 if state["status"] in ("applied", "rejected", "no_feedback") else 1
+
+
 def _cmd_director_run(args: argparse.Namespace) -> int:
     from .director_graph import run_director
 
@@ -160,6 +179,18 @@ def main(argv: list[str] | None = None) -> int:
         help="Director-агент (Ф3): гейт спроса -> делегує воркерам -> агрегує",
     )
     p_dir.set_defaults(func=_cmd_director_run)
+
+    p_pr = sub.add_parser(
+        "propose-and-open-pr",
+        help="Product-агент + approval-гейт (Ф4a): пресет -> diff -> approve -> gh pr create",
+        description=("СИНХРОННА модель (спека §2.2): команда генерує пресет, показує "
+                     "diff і опис, і НЕ повертає керування, поки ви не введете у ЦЬОМУ "
+                     "Ж терміналі слово 'approve' (реальний gh pr create) або будь-що "
+                     "інше (reject; diff лишається на диску). Один процес, підтвердження "
+                     "одразу — без асинхронного очікування."),
+    )
+    p_pr.add_argument("-o", "--output", default="presets", help="Куди писати пресет+опис")
+    p_pr.set_defaults(func=_cmd_propose_and_open_pr)
 
     # Підхопити .env (PRINT_ICC_PROFILE тощо) для обох команд.
     from dotenv import load_dotenv
