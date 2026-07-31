@@ -1,0 +1,18 @@
+# Vektralogos — Фаза 0 (P0 pdf-pipeline). Python-only серверний тракт.
+# Встановлення: python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
+
+# --- Друкарський pipeline ---
+fonttools==4.60.1      # гліфи -> криві (text-to-outlines); вбиває клас багів з кирилицею
+reportlab==4.5.1       # складання векторного PDF (криві-контури + фігури)
+# Ghostscript — СИСТЕМНИЙ бінарник (brew install ghostscript), не pip-пакет.
+# CMYK/ICC/PDF-X робимо через виклик `gs`. Перевірено локально: gs 10.07.
+
+# --- Canvas JSON: схема + structured output ---
+pydantic==2.13.3       # єдина схема: і валідація вводу, і формат structured output Claude
+anthropic==0.75.0      # Claude API, модель claude-opus-5 (prompt -> Canvas JSON)
+
+# --- Інфра ---
+python-dotenv==1.1.1   # завантаження .env (ANTHROPIC_API_KEY, PRINT_ICC_PROFILE)
+
+# --- Тести ---
+pytest==8.4.2          # по тесту на кожен інваріант (§4 CLAUDE.md)

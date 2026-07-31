@@ -1,0 +1,44 @@
+{
+  "version": "1.0",
+  "canvas": {
+    "width_mm": 90,
+    "height_mm": 50,
+    "bleed_mm": 3,
+    "dpi": 300,
+    "background": { "rgb": "#FFFFFF" }
+  },
+  "fonts": [
+    { "family": "Noto Sans", "file": "NotoSans-Regular.ttf" }
+  ],
+  "elements": [
+    {
+      "type": "rect",
+      "x_mm": 0,
+      "y_mm": 0,
+      "width_mm": 90,
+      "height_mm": 8,
+      "fill": { "cmyk": [0.0, 0.8, 1.0, 0.0] },
+      "rotation_deg": 0
+    },
+    {
+      "type": "text",
+      "x_mm": 6,
+      "y_mm": 26,
+      "text": "Привіт, світ!",
+      "font": "Noto Sans",
+      "size_pt": 22,
+      "fill": { "rgb": "#111111" },
+      "align": "left"
+    },
+    {
+      "type": "text",
+      "x_mm": 6,
+      "y_mm": 38,
+      "text": "Ґудзик, їжак, єнот — 0123",
+      "font": "Noto Sans",
+      "size_pt": 11,
+      "fill": { "rgb": "#555555" },
+      "align": "left"
+    }
+  ]
+}
