@@ -17,5 +17,8 @@ python-dotenv==1.1.1   # завантаження .env (ANTHROPIC_API_KEY, PRINT
 # --- Support-бот (Фаза 1): RAG doc-QA по репо ---
 rank_bm25==0.2.2       # keyword-скоринг (BM25) по markdown-чанках; без векторної БД
 
+# --- Product Graph (Фаза 2): LangGraph StateGraph ---
+langgraph==1.2.10      # оркестрація графом; MemorySaver для checkpoints (2a/2b)
+
 # --- Тести ---
 pytest==8.4.2          # по тесту на кожен інваріант (§4 CLAUDE.md)

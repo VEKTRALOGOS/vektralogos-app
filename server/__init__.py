@@ -13,6 +13,7 @@
 from .brief import DesignBrief, prompt_to_brief
 from .preflight import PreflightReport, preflight
 from .preflight_agent import AgentResult, preflight_agent
+from .preflight_graph import preflight_agent_graph
 from .prompt_to_canvas import prompt_to_canvas
 from .render import render
 from .schema import CanvasJSON
@@ -30,6 +31,7 @@ __all__ = [
     "PreflightReport",
     "preflight_agent",
     "AgentResult",
+    "preflight_agent_graph",
     "ask",
     "Retriever",
     "load_chunks",
