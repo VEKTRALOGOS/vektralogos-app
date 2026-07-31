@@ -133,3 +133,7 @@
   live; cron тарифікується безстроково — потрібен окремий «go» + план вимкнення).
   `teardown_deployment` (pause→archive) обов'язковий. `server/managed_ops.py`,
   10 офлайн-тестів. Цим Фаза 5 і вся навчальна програма STRATEGY §3 завершені.
+
+- **2026-07-31 · Створено `docs/OPERATING-MODEL.md`.** Формалізує handoff між
+  Claude Code / Claude AI / Gemini і роль репо як SoT. Раніше існував лише як
+  контекст поза репо — тепер канонічний файл.

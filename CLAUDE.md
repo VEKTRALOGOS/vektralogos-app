@@ -8,7 +8,8 @@
 віддає **коректний друкарський вектор** (SVG→PDF, CMYK, 300 DPI, кирилиця через
 text-to-outlines). Дві цілі: **дохід** (Shopify Billing, ніша з підтвердженим WTP)
 і **навчання** мультиагентним системам (LangGraph). Повна стратегія й фази —
-`STRATEGY.md`.
+`STRATEGY.md`. Операційна модель (ролі Claude Code / Claude AI / Gemini, handoff,
+конвенції гілок) — `docs/OPERATING-MODEL.md`.
 
 ## 2. Стек
 
