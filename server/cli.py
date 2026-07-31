@@ -100,6 +100,18 @@ def _cmd_propose_and_open_pr(args: argparse.Namespace) -> int:
     return 0 if state["status"] in ("applied", "rejected", "no_feedback") else 1
 
 
+def _cmd_evals(args: argparse.Namespace) -> int:
+    from .evals import run_evals
+
+    results = run_evals()
+    for r in results:
+        icon = "✅" if r.passed else "❌"
+        print(f"  {icon} {r.name}: {r.detail}")
+    failed = [r for r in results if not r.passed]
+    print(f"Evals: {len(results) - len(failed)}/{len(results)} пройдено")
+    return 0 if not failed else 1
+
+
 def _cmd_director_run(args: argparse.Namespace) -> int:
     from .director_graph import run_director
 
@@ -179,6 +191,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Director-агент (Ф3): гейт спроса -> делегує воркерам -> агрегує",
     )
     p_dir.set_defaults(func=_cmd_director_run)
+
+    p_ev = sub.add_parser(
+        "evals",
+        help="Детерміновані evals якості тракту на фікстурах (Ф4b), без мережі/gs",
+    )
+    p_ev.set_defaults(func=_cmd_evals)
 
     p_pr = sub.add_parser(
         "propose-and-open-pr",

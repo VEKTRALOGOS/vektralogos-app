@@ -194,6 +194,8 @@ def build_context(chunks: list[Chunk]) -> str:
 def _call_claude(question: str, context: str, *, max_tokens: int) -> str:
     from dotenv import load_dotenv
 
+    from .reliability import account, retry
+
     load_dotenv()
     if not os.environ.get("ANTHROPIC_API_KEY"):
         raise RuntimeError("ANTHROPIC_API_KEY не заданий (додай у .env)")
@@ -205,12 +207,20 @@ def _call_claude(question: str, context: str, *, max_tokens: int) -> str:
         f"Фрагменти документації:\n\n{context}\n\n"
         f"Питання: {question}"
     )
-    response = client.messages.create(
-        model=MODEL,
-        max_tokens=max_tokens,
-        system=SYSTEM,
-        messages=[{"role": "user", "content": user}],
-    )
+
+    def _call():
+        r = client.messages.create(
+            model=MODEL,
+            max_tokens=max_tokens,
+            system=SYSTEM,
+            messages=[{"role": "user", "content": user}],
+        )
+        account(r)  # per-run token budget (Ф4b), no-op без активного бюджета
+        return r
+
+    transient = (anthropic.APIConnectionError, anthropic.APITimeoutError,
+                 anthropic.RateLimitError, anthropic.InternalServerError)
+    response = retry(_call, attempts=3, exceptions=transient)
     return "".join(b.text for b in response.content if b.type == "text").strip()
 
 

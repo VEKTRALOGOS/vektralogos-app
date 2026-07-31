@@ -14,7 +14,9 @@ from .brief import DesignBrief, prompt_to_brief
 from .preflight import PreflightReport, preflight
 from .preflight_agent import AgentResult, preflight_agent
 from .director_graph import run_director
+from .evals import run_evals
 from .preflight_graph import preflight_agent_graph
+from .reliability import BudgetExceeded, TokenBudget, budget_scope, retry
 from .product_graph import Preset, run_product_agent, run_product_with_approval
 from .prompt_to_canvas import prompt_to_canvas
 from .render import render
@@ -38,6 +40,11 @@ __all__ = [
     "run_product_with_approval",
     "Preset",
     "run_director",
+    "run_evals",
+    "retry",
+    "TokenBudget",
+    "BudgetExceeded",
+    "budget_scope",
     "ask",
     "Retriever",
     "load_chunks",
