@@ -13,6 +13,7 @@
 from .brief import DesignBrief, prompt_to_brief
 from .preflight import PreflightReport, preflight
 from .preflight_agent import AgentResult, preflight_agent
+from .director_graph import run_director
 from .preflight_graph import preflight_agent_graph
 from .product_graph import Preset, run_product_agent
 from .prompt_to_canvas import prompt_to_canvas
@@ -35,6 +36,7 @@ __all__ = [
     "preflight_agent_graph",
     "run_product_agent",
     "Preset",
+    "run_director",
     "ask",
     "Retriever",
     "load_chunks",
