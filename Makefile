@@ -34,8 +34,9 @@ fetch-icc:
 	@echo "Done: $(ICC_FILE)"
 	@echo "Тепер додай у .env:  PRINT_ICC_PROFILE=$(CURDIR)/$(ICC_FILE)"
 
-# Editor MVP: локальний редактор у браузері (prompt -> превью -> print-ready PDF).
-# Відкрий http://127.0.0.1:8000. Потрібен ANTHROPIC_API_KEY у .env для /api/brief.
+# Локальний застосунок у браузері. Відкрий http://127.0.0.1:8000
+#   /            — Editor MVP (prompt -> превью -> print-ready PDF), треба ANTHROPIC_API_KEY
+#   /onboarding  — онбординг-флоу (пресети -> редактор -> export зі стадіями -> бейджі), без LLM
 PORT ?= 8000
 serve:
 	$(PY) -m uvicorn server.api:app --host 127.0.0.1 --port $(PORT) --reload

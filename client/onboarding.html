@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vektralogos — Онбординг</title>
+  <script src="/vendor/fabric.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1115; --panel: #171a21; --panel-2: #1e222c; --line: #262b36;
+      --text: #e6e8ee; --muted: #9aa3b2; --accent: #5b8cff; --accent-2: #34d399;
+      --warn: #fbbf24; --danger: #f87171;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--text); min-height: 100vh;
+    }
+    .topbar {
+      display: flex; align-items: center; gap: 12px; padding: 12px 20px;
+      border-bottom: 1px solid var(--line);
+    }
+    .topbar .brand { font-weight: 700; }
+    .steps { margin-left: auto; display: flex; gap: 6px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+    .dot.active { background: var(--accent); }
+    .dot.done { background: var(--accent-2); }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 40px 24px; }
+    .screen { display: none; }
+    .screen.active { display: block; animation: fade .25s ease; }
+    @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    h1 { font-size: 30px; margin: 0 0 12px; letter-spacing: -.5px; }
+    h2 { font-size: 22px; margin: 0 0 16px; }
+    p.lead { font-size: 18px; color: var(--muted); max-width: 620px; }
+    .pill { display: inline-flex; align-items: center; gap: 8px; background: var(--panel);
+      border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; font-size: 13px;
+      color: var(--muted); }
+    .pill b { color: var(--accent-2); }
+    button {
+      background: var(--accent); color: #fff; border: 0; border-radius: 10px;
+      padding: 13px 22px; font: inherit; font-weight: 650; cursor: pointer; margin-top: 24px;
+    }
+    button.ghost { background: var(--panel); border: 1px solid var(--line); color: var(--text); }
+    button.go { background: var(--accent-2); color: #06281c; }
+    button:disabled { opacity: .5; cursor: default; }
+    .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 8px; }
+    .card {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px;
+      cursor: pointer; transition: border-color .15s, transform .1s; text-align: center;
+    }
+    .card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .card .thumb { background: #fff; border-radius: 8px; display: flex; align-items: center;
+      justify-content: center; height: 150px; overflow: hidden; margin-bottom: 10px; }
+    .card .name { font-weight: 600; }
+    .card .prod { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+    .card .cyr { margin-top: 6px; font-size: 12px; color: var(--accent-2); }
+    .editor { display: grid; grid-template-columns: 300px 1fr; gap: 24px; align-items: start; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+    .panel label { font-size: 12px; color: var(--muted); display: block; margin: 14px 0 6px; }
+    .panel input[type=text] { width: 100%; background: var(--panel-2); border: 1px solid var(--line);
+      color: var(--text); border-radius: 8px; padding: 9px 11px; font: inherit; }
+    .swatches { display: flex; gap: 8px; margin-top: 8px; }
+    .swatch { width: 30px; height: 30px; border-radius: 8px; border: 2px solid transparent; cursor: pointer; }
+    .swatch.sel { border-color: #fff; }
+    .stage-view { background: linear-gradient(45deg,#14171d 25%,transparent 25%) 0 0/24px 24px,
+      linear-gradient(-45deg,#14171d 25%,transparent 25%) 0 0/24px 24px,
+      linear-gradient(45deg,transparent 75%,#14171d 75%) 12px 12px/24px 24px,
+      linear-gradient(-45deg,transparent 75%,#14171d 75%) 12px 12px/24px 24px;
+      border-radius: 12px; padding: 24px; display: flex; align-items: center; justify-content: center; }
+    .canvas-box { box-shadow: 0 8px 40px rgba(0,0,0,.5); border-radius: 2px; overflow: hidden; }
+    .spinner { width: 46px; height: 46px; border: 4px solid var(--line); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .export-center { text-align: center; padding: 60px 0; }
+    .stage-label { margin-top: 20px; font-size: 18px; }
+    .stage-log { margin-top: 10px; color: var(--muted); font-size: 13px; min-height: 20px; }
+    .badges { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 8px; max-width: 560px; }
+    .badge { display: flex; align-items: center; gap: 12px; background: var(--panel);
+      border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+    .badge .ic { font-size: 20px; }
+    .badge.ok { border-color: rgba(52,211,153,.4); }
+    .badge.no { border-color: rgba(251,191,36,.4); }
+    .badge .t { font-weight: 650; }
+    .badge .d { font-size: 12px; color: var(--muted); }
+    .result-grid { display: grid; grid-template-columns: 320px 1fr; gap: 28px; align-items: start; }
+    .nudge { background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+      padding: 22px; max-width: 560px; }
+    .meter { height: 10px; background: var(--panel-2); border-radius: 999px; overflow: hidden; margin: 12px 0; }
+    .meter > i { display: block; height: 100%; background: var(--accent-2); }
+    .banner { background: rgba(251,191,36,.12); border: 1px solid rgba(251,191,36,.4);
+      color: var(--warn); border-radius: 10px; padding: 12px 14px; margin-top: 14px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <span class="brand">Vektralogos</span>
+    <span class="pill">Print-Ready Personalizer</span>
+    <div class="steps" id="steps"></div>
+  </div>
+  <div class="wrap">
+
+    <!-- 1. Install success -->
+    <section class="screen" data-step="1">
+      <h1>Готово — застосунок встановлено 🎉</h1>
+      <p class="lead">Тариф <b>Free</b> активовано автоматично: <b>10 експортів/міс</b>, без картки. Нульовий бар'єр — можна одразу пробувати.</p>
+      <div style="margin-top:16px"><span class="pill">✅ Free активний · <b>10 exp/міс</b> · картка не потрібна</span></div>
+      <button class="go" onclick="go(2)">Далі</button>
+    </section>
+
+    <!-- 2. Welcome -->
+    <section class="screen" data-step="2">
+      <h1>Клієнти дизайнять — ви отримуєте CMYK&nbsp;PDF, готовий до друку.</h1>
+      <p class="lead">Кирилиця, вильоти, 300&nbsp;DPI і текст у кривих — з коробки. Без ручного препресу.</p>
+      <button class="go" onclick="go(3)">Створити перший дизайн</button>
+    </section>
+
+    <!-- 3. Sample picker -->
+    <section class="screen" data-step="3">
+      <h2>Оберіть шаблон</h2>
+      <p class="lead" style="font-size:15px">Три приклади — усі з кирилицею. Це і є доказ: працює одразу, без налаштувань шрифтів.</p>
+      <div class="cards" id="cards"></div>
+    </section>
+
+    <!-- 4. Editor -->
+    <section class="screen" data-step="4">
+      <h2>Редагуйте у прев'ю</h2>
+      <div class="editor">
+        <div class="panel">
+          <div id="text-fields"></div>
+          <label>Колір тексту</label>
+          <div class="swatches" id="swatches"></div>
+          <button class="go" style="width:100%" onclick="startExport()">Отримати print-ready файл</button>
+        </div>
+        <div class="stage-view">
+          <div class="canvas-box"><canvas id="edit-canvas" width="420" height="592"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. Export -->
+    <section class="screen" data-step="5">
+      <div class="export-center">
+        <div class="spinner" style="margin:0 auto"></div>
+        <div class="stage-label" id="stage-label">Готуємо файл…</div>
+        <div class="stage-log" id="stage-log"></div>
+      </div>
+    </section>
+
+    <!-- 6. Result -->
+    <section class="screen" data-step="6">
+      <h2>Print-ready файл готовий</h2>
+      <div class="result-grid">
+        <div class="stage-view">
+          <div class="canvas-box"><img id="result-thumb" alt="прев'ю PDF" style="display:block;max-width:100%;background:#fff"/></div>
+        </div>
+        <div>
+          <div class="badges" id="badges"></div>
+          <div style="display:flex; gap:12px; flex-wrap:wrap">
+            <a id="download-link" href="#"><button class="go">Завантажити PDF</button></a>
+            <button class="ghost" onclick="go(7)">Далі</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7. Post-export nudge -->
+    <section class="screen" data-step="7">
+      <h2>Ще один готовий 👌</h2>
+      <div class="nudge">
+        <div id="nudge-count" style="font-size:18px; font-weight:650"></div>
+        <div class="meter"><i id="nudge-meter"></i></div>
+        <div id="nudge-banner"></div>
+      </div>
+      <button class="ghost" onclick="go(3)">Створити ще один дизайн</button>
+    </section>
+
+  </div>
+
+  <script>
+    const PX_PER_MM = 4, PT_TO_MM = 25.4 / 72.0;
+    const TOTAL_STEPS = 7;
+    const FREE_LIMIT = 10;
+    let usedExports = 0;
+    let currentCanvasJSON = null;
+    const loadedFonts = new Set();
+    const SWATCHES = ['#111111', '#B00020', '#0B3D2E', '#1D4ED8', '#7C3AED', '#C8A24B'];
+
+    // --- навігація ---
+    function buildSteps() {
+      const el = document.getElementById('steps');
+      for (let i = 1; i <= TOTAL_STEPS; i++) {
+        const d = document.createElement('span'); d.className = 'dot'; d.dataset.s = i; el.appendChild(d);
+      }
+    }
+    function go(step) {
+      document.querySelectorAll('.screen').forEach(s =>
+        s.classList.toggle('active', +s.dataset.step === step));
+      document.querySelectorAll('.dot').forEach(d => {
+        const s = +d.dataset.s;
+        d.className = 'dot' + (s === step ? ' active' : (s < step ? ' done' : ''));
+      });
+      window.scrollTo(0, 0);
+    }
+
+    // --- колір: {rgb}|{cmyk} -> css ---
+    function toCss(c) {
+      if (!c) return null;
+      if (c.rgb) return c.rgb;
+      if (c.cmyk) { const [C,M,Y,K]=c.cmyk;
+        return `rgb(${Math.round(255*(1-C)*(1-K))},${Math.round(255*(1-M)*(1-K))},${Math.round(255*(1-Y)*(1-K))})`; }
+      return null;
+    }
+    async function ensureFonts(cj) {
+      for (const f of (cj.fonts || [])) {
+        if (loadedFonts.has(f.family)) continue;
+        const ff = new FontFace(f.family, `url(/api/font/${encodeURIComponent(f.file)})`);
+        await ff.load(); document.fonts.add(ff); loadedFonts.add(f.family);
+      }
+    }
+    // Рендер CanvasJSON у заданий Fabric-canvas (той самий парсинг, що й друк).
+    async function renderInto(fc, cj, ppm) {
+      await ensureFonts(cj);
+      const cv = cj.canvas, bleed = cv.bleed_mm || 0;
+      const W = (cv.width_mm + 2*bleed)*ppm, H = (cv.height_mm + 2*bleed)*ppm;
+      fc.setWidth(W); fc.setHeight(H); fc.clear();
+      fc.backgroundColor = toCss(cv.background) || '#ffffff';
+      const ox = bleed*ppm, oy = bleed*ppm;
+      for (const el of (cj.elements || [])) {
+        if (el.type === 'rect') {
+          fc.add(new fabric.Rect({ left: ox+el.x_mm*ppm, top: oy+el.y_mm*ppm,
+            width: el.width_mm*ppm, height: el.height_mm*ppm,
+            rx: (el.corner_radius_mm||0)*ppm, ry: (el.corner_radius_mm||0)*ppm,
+            fill: toCss(el.fill)||'transparent', stroke: toCss(el.stroke)||null,
+            strokeWidth: (el.stroke_width_mm||0)*ppm, angle: el.rotation_deg||0,
+            selectable:false, evented:false }));
+        } else if (el.type === 'text') {
+          const sizeMm = el.size_pt*PT_TO_MM, topMm = el.y_mm - 0.8*sizeMm;
+          const originX = el.align==='center'?'center':(el.align==='right'?'right':'left');
+          fc.add(new fabric.Text(el.text, { left: ox+el.x_mm*ppm, top: oy+topMm*ppm,
+            fontFamily: el.font, fontSize: sizeMm*ppm, fill: toCss(el.fill)||'#000',
+            textAlign: el.align||'left', originX, originY:'top', angle: el.rotation_deg||0,
+            lineHeight: el.line_height||1.2, selectable:false, evented:false }));
+        }
+      }
+      fc.renderAll();
+    }
+
+    // --- крок 3: пресети ---
+    let editCanvas;
+    async function loadPresets() {
+      const res = await fetch('/api/presets');
+      const { presets } = await res.json();
+      const host = document.getElementById('cards'); host.innerHTML = '';
+      for (const p of presets) {
+        const card = document.createElement('div'); card.className = 'card';
+        card.innerHTML = `<div class="thumb"><canvas></canvas></div>
+          <div class="name">${p.title}</div><div class="prod">${p.product}</div>
+          <div class="cyr">✓ кирилиця у прикладі</div>`;
+        host.appendChild(card);
+        const thumb = new fabric.StaticCanvas(card.querySelector('canvas'));
+        await renderInto(thumb, p.canvas, 1.4);
+        card.addEventListener('click', () => selectPreset(p.canvas));
+      }
+    }
+
+    function selectPreset(canvasJSON) {
+      currentCanvasJSON = JSON.parse(JSON.stringify(canvasJSON)); // редагована копія
+      buildEditor();
+      go(4);
+    }
+
+    // --- крок 4: редактор (live текст/колір) ---
+    function buildEditor() {
+      const fields = document.getElementById('text-fields'); fields.innerHTML = '';
+      currentCanvasJSON.elements.forEach((el, i) => {
+        if (el.type !== 'text') return;
+        const lbl = document.createElement('label'); lbl.textContent = 'Текст';
+        const inp = document.createElement('input'); inp.type = 'text'; inp.value = el.text;
+        inp.addEventListener('input', () => { currentCanvasJSON.elements[i].text = inp.value; reRender(); });
+        fields.appendChild(lbl); fields.appendChild(inp);
+      });
+      const sw = document.getElementById('swatches'); sw.innerHTML = '';
+      const cur = firstTextColor();
+      SWATCHES.forEach(hex => {
+        const s = document.createElement('div');
+        s.className = 'swatch' + (hex.toLowerCase() === (cur||'').toLowerCase() ? ' sel' : '');
+        s.style.background = hex;
+        s.addEventListener('click', () => { setTextColor(hex); reRender();
+          sw.querySelectorAll('.swatch').forEach(x => x.classList.remove('sel')); s.classList.add('sel'); });
+        sw.appendChild(s);
+      });
+      reRender();
+    }
+    function firstTextColor() {
+      const t = currentCanvasJSON.elements.find(e => e.type === 'text');
+      return t && t.fill && t.fill.rgb ? t.fill.rgb : '#111111';
+    }
+    function setTextColor(hex) {
+      currentCanvasJSON.elements.forEach(e => { if (e.type === 'text') e.fill = { rgb: hex }; });
+    }
+    async function reRender() {
+      if (!editCanvas) editCanvas = new fabric.Canvas('edit-canvas', { selection: false });
+      await renderInto(editCanvas, currentCanvasJSON, PX_PER_MM);
+    }
+
+    // --- крок 5: експорт зі стадіями (реальний SSE) ---
+    async function startExport() {
+      go(5);
+      document.getElementById('stage-label').textContent = 'Готуємо файл…';
+      document.getElementById('stage-log').textContent = '';
+      const res = await fetch('/api/export/stream', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(currentCanvasJSON),
+      });
+      const reader = res.body.getReader(); const dec = new TextDecoder();
+      let buf = '';
+      const STAGE_TEXT = { converting_cmyk: 'Конвертація в CMYK…', checking_dpi: 'Перевірка DPI…' };
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf('\n\n')) >= 0) {
+          const chunk = buf.slice(0, idx); buf = buf.slice(idx + 2);
+          const ev = /event: (.*)/.exec(chunk); const dt = /data: (.*)/.exec(chunk);
+          if (!ev) continue;
+          const stage = ev[1].trim(); const payload = dt ? JSON.parse(dt[1]) : {};
+          if (stage in STAGE_TEXT) {
+            document.getElementById('stage-label').textContent = STAGE_TEXT[stage];
+            const log = document.getElementById('stage-log');
+            log.textContent += (log.textContent ? '  →  ' : '') + STAGE_TEXT[stage];
+          } else if (stage === 'done') {
+            showResult(payload);
+          }
+        }
+      }
+    }
+
+    // --- крок 6: результат + бейджі (реальні) ---
+    function showResult(p) {
+      const host = document.getElementById('badges'); host.innerHTML = '';
+      for (const b of p.badges) {
+        const d = document.createElement('div'); d.className = 'badge ' + (b.ok ? 'ok' : 'no');
+        d.innerHTML = `<span class="ic">${b.ok ? '✅' : '⚠️'}</span>
+          <span><span class="t">${b.label}</span><br><span class="d">${b.detail}</span></span>`;
+        host.appendChild(d);
+      }
+      document.getElementById('result-thumb').src = editCanvas.toDataURL({ format: 'png', backgroundColor: '#ffffff' });
+      document.getElementById('download-link').href = p.download_url;
+      usedExports = Math.min(FREE_LIMIT, usedExports + 1);
+      buildNudge();
+      go(6);
+    }
+
+    // --- крок 7: nudge-лічильник ---
+    function buildNudge() {
+      const left = FREE_LIMIT - usedExports;
+      document.getElementById('nudge-count').textContent =
+        `${left} з ${FREE_LIMIT} безкоштовних експортів залишилось цього місяця`;
+      document.getElementById('nudge-meter').style.width = (left / FREE_LIMIT * 100) + '%';
+      const banner = document.getElementById('nudge-banner');
+      banner.innerHTML = (usedExports >= 8)
+        ? '<div class="banner">Starter від $19/міс — 75 експортів. Апгрейд у будь-який момент.</div>'
+        : '';
+    }
+
+    buildSteps();
+    loadPresets();
+    go(1);
+  </script>
+</body>
+</html>
