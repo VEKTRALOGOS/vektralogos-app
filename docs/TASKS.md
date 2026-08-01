@@ -49,11 +49,13 @@
 | 19 | Інфра | git init + GitHub remote | Claude Code | ✅ | `VEKTRALOGOS/vektralogos-app` |
 | 20 | Ops | ця дошка `docs/TASKS.md` | Claude Code | ✅ | |
 | 21 | Onboarding | спека флоу (7 екранів) | Claude AI | ✅ | `docs/specs/onboarding-flow.md` |
-| 22 | Onboarding | реалізація флоу | Claude Code | ☐ | залежить від Editor MVP |
+| 22 | Onboarding | реалізація флоу | Claude Code | 🔄 | код на `feat/onboarding-flow` (поверх Editor MVP); 7 екранів, live-verified; чекає merge → ✅ |
+| 23 | Copy | shot-list під зйомку | Claude AI + Claude Code | ✅ | `docs/copy/app-store-shotlist.md` (ClaudeAI shot-list, збережено) |
 
-**Відкрито зараз:** 2, 5, 6, 8, 17, 18, 22 (3–4 у 🔄 — код готовий, чекає merge).
-**Гарячий фронт:** merge `feat/editor-mvp` (закриває 3–4) → 5 (скріншоти) → 6
-(Gemini: App Store вимоги — блокер подачі на ревʼю).
+**Відкрито зараз:** 2, 5, 6, 8, 17, 18 (3–4, 22 у 🔄 — код готовий, чекає merge).
+**Гарячий фронт:** merge `feat/editor-mvp` → `feat/onboarding-flow` (закриває 3–4,
+22) → 5 (зйомка за `docs/copy/app-store-shotlist.md`) → 6 (Gemini: App Store
+вимоги — блокер подачі на ревʼю).
 
 ---
 

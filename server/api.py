@@ -17,17 +17,25 @@ CLAUDE.md §4 п.1). Друкарський файл лишається вект
 
 from __future__ import annotations
 
+import json
 import os
 import uuid
 from typing import Any
 
 from dotenv import load_dotenv
 from fastapi import Body, FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    Response,
+    StreamingResponse,
+)
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .brief import DesignBrief, prompt_to_brief
+from .onboarding import export_stages, presets_payload
 from .preflight_agent import preflight_agent
 from .prompt_to_canvas import DEFAULT_PAPER, brief_from_prompt_to_canvas, resolve_size
 from .render import FONTS_DIR, render_preview_png
@@ -43,6 +51,10 @@ _CLIENT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "client")
 # міг растеризувати той самий вектор без повторної відправки з клієнта. MVP:
 # без БД, без TTL; процес живе один сеанс демо/скріншоту.
 _CANVAS_CACHE: dict[str, CanvasJSON] = {}
+
+# Кеш готових print-ready PDF від онбординг-експорту (id -> bytes), щоб екран
+# Result міг віддати файл на завантаження без повторного рендеру.
+_EXPORT_CACHE: dict[str, bytes] = {}
 
 
 class BriefRequest(BaseModel):
@@ -133,6 +145,70 @@ def api_font(file_name: str) -> FileResponse:
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail=f"Шрифт не знайдено: {file_name}")
     return FileResponse(path, media_type="font/ttf")
+
+
+# --- Онбординг-флоу (спека onboarding-flow.md, TASKS #22) --------------------
+
+
+@app.get("/api/presets")
+def api_presets() -> dict[str, Any]:
+    """Пресети кроку 3 (детерміновані, кирилиця в кожному). Кешує canvas під id."""
+    presets = presets_payload()
+    # Реєструємо кожен canvas у кеші, щоб /api/preview/<id> теж працював.
+    for p in presets:
+        cid = uuid.uuid4().hex
+        _CANVAS_CACHE[cid] = CanvasJSON.model_validate(p["canvas"])
+        p["preview_id"] = cid
+    return {"presets": presets}
+
+
+@app.post("/api/export/stream")
+def api_export_stream(canvas: dict[str, Any] = Body(..., embed=False)) -> StreamingResponse:
+    """SSE-стрім реальних стадій експорту (крок 5): converting_cmyk → checking_dpi
+    → done. Мітки відповідають реальним фазам тракту, без фейкового таймера."""
+    try:
+        spec = CanvasJSON.model_validate(canvas)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Невалідний CanvasJSON: {exc}") from exc
+
+    def _events():
+        for stage, payload in export_stages(spec):
+            if stage == "done":
+                pdf = payload.pop("pdf")
+                export_id = uuid.uuid4().hex
+                _EXPORT_CACHE[export_id] = pdf
+                payload["export_id"] = export_id
+                payload["download_url"] = f"/api/download/{export_id}"
+            yield f"event: {stage}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        _events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.get("/api/download/{export_id}")
+def api_download(export_id: str) -> Response:
+    """Віддає print-ready PDF, збережений під час експорту (крок 6)."""
+    pdf = _EXPORT_CACHE.get(export_id)
+    if pdf is None:
+        raise HTTPException(status_code=404, detail=f"Невідомий export id: {export_id}")
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'attachment; filename="vektralogos-print.pdf"'},
+    )
+
+
+@app.get("/onboarding", response_class=HTMLResponse)
+def onboarding() -> HTMLResponse:
+    """7-кроковий онбординг-флоу (client/onboarding.html)."""
+    path = os.path.join(_CLIENT_DIR, "onboarding.html")
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="client/onboarding.html не знайдено")
+    with open(path, "r", encoding="utf-8") as fh:
+        return HTMLResponse(fh.read())
 
 
 @app.get("/", response_class=HTMLResponse)
