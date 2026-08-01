@@ -30,8 +30,8 @@
 |---|---|---|---|---|---|
 | 1 | Ф0 | preflight `{ok, issues}` | Claude Code | ✅ | |
 | 2 | Ф0 | тест-кейси CanvasJSON | Claude Code | ☐ | |
-| 3 | Editor MVP | тонкий HTTP-шар (API) | Claude Code | ☐ | спека готова |
-| 4 | Editor MVP | Fabric.js клієнт (UI) | Claude Code | ☐ | спека готова |
+| 3 | Editor MVP | тонкий HTTP-шар (API) | Claude Code | 🔄 | код готовий на `feat/editor-mvp` (b6b83cf), pushed; live-verified; чекає merge → тоді ✅ |
+| 4 | Editor MVP | Fabric.js клієнт (UI) | Claude Code | 🔄 | код готовий на `feat/editor-mvp` (b6b83cf), pushed; прев'ю з того ж CanvasJSON+.ttf; чекає merge → тоді ✅ |
 | 5 | Editor MVP | реальні скрін+GIF | Антон | ☐ | залежить від 3,4 |
 | 6 | Ресёрч | App Store вимоги 2026 | Gemini | ☐ | у репо ще немає |
 | 7 | Ресёрч | pricing-competitors | Gemini | ✅ | `docs/research/pricing-competitors.md` |
@@ -51,9 +51,9 @@
 | 21 | Onboarding | спека флоу (7 екранів) | Claude AI | ✅ | `docs/specs/onboarding-flow.md` |
 | 22 | Onboarding | реалізація флоу | Claude Code | ☐ | залежить від Editor MVP |
 
-**Відкрито зараз:** 2, 3, 4, 5, 6, 8, 17, 18, 22.
-**Гарячий фронт:** 3–4 (UI/Editor MVP код) → 5 (скріншоти) → 6 (Gemini: App Store
-вимоги — блокер подачі на ревʼю).
+**Відкрито зараз:** 2, 5, 6, 8, 17, 18, 22 (3–4 у 🔄 — код готовий, чекає merge).
+**Гарячий фронт:** merge `feat/editor-mvp` (закриває 3–4) → 5 (скріншоти) → 6
+(Gemini: App Store вимоги — блокер подачі на ревʼю).
 
 ---
 
