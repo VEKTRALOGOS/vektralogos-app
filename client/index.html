@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vektralogos — Editor MVP</title>
+  <script src="/vendor/fabric.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1115; --panel: #171a21; --line: #262b36; --text: #e6e8ee;
+      --muted: #9aa3b2; --accent: #5b8cff; --accent-2: #34d399; --danger: #f87171;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--text); min-height: 100vh;
+    }
+    header {
+      padding: 14px 20px; border-bottom: 1px solid var(--line);
+      display: flex; align-items: baseline; gap: 12px;
+    }
+    header h1 { font-size: 17px; margin: 0; font-weight: 650; }
+    header .sub { color: var(--muted); font-size: 13px; }
+    main { display: grid; grid-template-columns: 380px 1fr; gap: 0; min-height: calc(100vh - 52px); }
+    .controls { padding: 20px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 14px; }
+    label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 6px; }
+    textarea, select {
+      width: 100%; background: var(--panel); border: 1px solid var(--line); color: var(--text);
+      border-radius: 8px; padding: 10px 12px; font: inherit; resize: vertical;
+    }
+    textarea { min-height: 90px; }
+    .row { display: flex; gap: 10px; }
+    .row > * { flex: 1; }
+    button {
+      background: var(--accent); color: #fff; border: 0; border-radius: 8px;
+      padding: 11px 14px; font: inherit; font-weight: 600; cursor: pointer;
+    }
+    button.secondary { background: var(--panel); border: 1px solid var(--line); color: var(--text); }
+    button:disabled { opacity: .5; cursor: default; }
+    button.go { background: var(--accent-2); color: #06281c; }
+    .status { font-size: 13px; color: var(--muted); min-height: 18px; }
+    .status.err { color: var(--danger); }
+    .status.ok { color: var(--accent-2); }
+    .stage {
+      display: flex; align-items: center; justify-content: center; padding: 28px; overflow: auto;
+      background:
+        linear-gradient(45deg, #14171d 25%, transparent 25%) 0 0/24px 24px,
+        linear-gradient(-45deg, #14171d 25%, transparent 25%) 0 0/24px 24px,
+        linear-gradient(45deg, transparent 75%, #14171d 75%) 12px 12px/24px 24px,
+        linear-gradient(-45deg, transparent 75%, #14171d 75%) 12px 12px/24px 24px;
+    }
+    .canvas-wrap { box-shadow: 0 8px 40px rgba(0,0,0,.55); border-radius: 2px; overflow: hidden; }
+    .hint { font-size: 12px; color: var(--muted); }
+    code { background: var(--panel); padding: 1px 5px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Vektralogos</h1>
+    <span class="sub">Print-Ready Personalizer — prompt → превью → друкарський PDF</span>
+  </header>
+  <main>
+    <section class="controls">
+      <div>
+        <label for="prompt">Опишіть дизайн</label>
+        <textarea id="prompt" placeholder="напр.: святкова листівка з написом «Вітаю!» теплих тонів">святкова листівка «Вітаю зі святом!», ім'я Олена, теплі тони</textarea>
+      </div>
+      <div class="row">
+        <div>
+          <label for="size">Розмір</label>
+          <select id="size">
+            <option value="a6">A6 (листівка)</option>
+            <option value="a5">A5</option>
+            <option value="a4">A4</option>
+            <option value="card">Візитка</option>
+          </select>
+        </div>
+      </div>
+      <button id="generate" class="go">Згенерувати превью</button>
+      <button id="download" class="secondary" disabled>Завантажити print-ready PDF</button>
+      <div id="status" class="status">Введіть промпт і натисніть «Згенерувати превью».</div>
+      <div class="hint">
+        Превью малюється на Fabric.js з того самого <code>CanvasJSON</code> і того самого
+        <code>.ttf</code>, що йдуть на сервер у друк — не окремий шлях (інваріант §4).
+      </div>
+    </section>
+    <section class="stage">
+      <div class="canvas-wrap">
+        <canvas id="c" width="420" height="592"></canvas>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const PX_PER_MM = 4;               // масштаб екрану (≈100 DPI прев'ю)
+    const PT_TO_MM = 25.4 / 72.0;
+    const $ = (id) => document.getElementById(id);
+
+    const canvas = new fabric.Canvas('c', { selection: false, backgroundColor: '#ffffff' });
+    let currentCanvasId = null;        // id останнього CanvasJSON (для /api/preview)
+    let currentCanvasJSON = null;      // сам CanvasJSON (йде у /api/render — той самий об'єкт)
+    const loadedFonts = new Set();
+
+    function setStatus(msg, kind) {
+      const el = $('status');
+      el.textContent = msg;
+      el.className = 'status' + (kind ? ' ' + kind : '');
+    }
+
+    // {rgb:"#RRGGBB"} | {cmyk:[c,m,y,k]} -> css color (екранна апроксимація).
+    function toCss(color) {
+      if (!color) return null;
+      if (color.rgb) return color.rgb;
+      if (color.cmyk) {
+        const [c, m, y, k] = color.cmyk;
+        const r = Math.round(255 * (1 - c) * (1 - k));
+        const g = Math.round(255 * (1 - m) * (1 - k));
+        const b = Math.round(255 * (1 - y) * (1 - k));
+        return `rgb(${r},${g},${b})`;
+      }
+      return null;
+    }
+
+    // Той самий .ttf, що й сервер: тягнемо зі /api/font/<file> як FontFace.
+    async function ensureFonts(cj) {
+      for (const f of (cj.fonts || [])) {
+        if (loadedFonts.has(f.family)) continue;
+        const ff = new FontFace(f.family, `url(/api/font/${encodeURIComponent(f.file)})`);
+        await ff.load();
+        document.fonts.add(ff);
+        loadedFonts.add(f.family);
+      }
+    }
+
+    // CanvasJSON -> Fabric-об'єкти. Один парсинг того ж JSON (інваріант §4 п.1).
+    async function renderCanvasJSON(cj) {
+      await ensureFonts(cj);
+      const cv = cj.canvas;
+      const bleed = cv.bleed_mm || 0;
+      // Полотно = trim + виліт з усіх боків, як у render_vector_pdf.
+      const totalW = (cv.width_mm + 2 * bleed) * PX_PER_MM;
+      const totalH = (cv.height_mm + 2 * bleed) * PX_PER_MM;
+      canvas.setWidth(totalW);
+      canvas.setHeight(totalH);
+      canvas.setBackgroundColor(toCss(cv.background) || '#ffffff', () => {});
+      canvas.clear();
+      canvas.backgroundColor = toCss(cv.background) || '#ffffff';
+
+      const ox = bleed * PX_PER_MM;    // зсув координат JSON на величину вильоту
+      const oy = bleed * PX_PER_MM;
+
+      for (const el of (cj.elements || [])) {
+        if (el.type === 'rect') {
+          canvas.add(new fabric.Rect({
+            left: ox + el.x_mm * PX_PER_MM,
+            top: oy + el.y_mm * PX_PER_MM,
+            width: el.width_mm * PX_PER_MM,
+            height: el.height_mm * PX_PER_MM,
+            rx: (el.corner_radius_mm || 0) * PX_PER_MM,
+            ry: (el.corner_radius_mm || 0) * PX_PER_MM,
+            fill: toCss(el.fill) || 'transparent',
+            stroke: toCss(el.stroke) || null,
+            strokeWidth: (el.stroke_width_mm || 0) * PX_PER_MM,
+            angle: el.rotation_deg || 0,
+            selectable: false, evented: false,
+          }));
+        } else if (el.type === 'text') {
+          const sizeMm = el.size_pt * PT_TO_MM;
+          // Схема: (x_mm,y_mm) — baseline. Реконструюємо верх, як templater (ascent≈0.8).
+          const topMm = el.y_mm - 0.8 * sizeMm;
+          const originX = el.align === 'center' ? 'center' : (el.align === 'right' ? 'right' : 'left');
+          const t = new fabric.Text(el.text, {
+            left: ox + el.x_mm * PX_PER_MM,
+            top: oy + topMm * PX_PER_MM,
+            fontFamily: el.font,
+            fontSize: sizeMm * PX_PER_MM,
+            fill: toCss(el.fill) || '#000000',
+            textAlign: el.align || 'left',
+            originX, originY: 'top',
+            angle: el.rotation_deg || 0,
+            lineHeight: el.line_height || 1.2,
+            charSpacing: (el.letter_spacing || 0) * 50,   // pt→‰ em (наближено)
+            selectable: false, evented: false,
+          });
+          canvas.add(t);
+        } else if (el.type === 'image') {
+          // Фото-зона: у прев'ю позначаємо рамкою (сам растр не завантажуємо у MVP).
+          canvas.add(new fabric.Rect({
+            left: ox + el.x_mm * PX_PER_MM, top: oy + el.y_mm * PX_PER_MM,
+            width: el.width_mm * PX_PER_MM, height: el.height_mm * PX_PER_MM,
+            fill: 'rgba(120,140,180,.15)', stroke: '#7a86a8', strokeDashArray: [6, 4],
+            strokeWidth: 1, angle: el.rotation_deg || 0, selectable: false, evented: false,
+          }));
+        }
+      }
+      canvas.renderAll();
+    }
+
+    async function generate() {
+      const prompt = $('prompt').value.trim();
+      const size = $('size').value;
+      if (!prompt) { setStatus('Спершу введіть промпт.', 'err'); return; }
+
+      $('generate').disabled = true;
+      $('download').disabled = true;
+      try {
+        setStatus('1/2 — модель складає бриф…');
+        const briefRes = await fetch('/api/brief', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, size }),
+        });
+        if (!briefRes.ok) throw new Error((await briefRes.json()).detail || 'brief failed');
+        const { brief } = await briefRes.json();
+
+        setStatus('2/2 — розкладка Canvas JSON…');
+        const canvasRes = await fetch('/api/canvas', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ brief, size }),
+        });
+        if (!canvasRes.ok) throw new Error((await canvasRes.json()).detail || 'canvas failed');
+        const data = await canvasRes.json();
+        currentCanvasId = data.id;
+        currentCanvasJSON = data.canvas;
+
+        await renderCanvasJSON(currentCanvasJSON);
+        setStatus('Готово. Превью з того ж CanvasJSON + шрифту. Можна завантажити PDF.', 'ok');
+        $('download').disabled = false;
+      } catch (e) {
+        setStatus('Помилка: ' + e.message, 'err');
+      } finally {
+        $('generate').disabled = false;
+      }
+    }
+
+    async function download() {
+      if (!currentCanvasJSON) return;
+      $('download').disabled = true;
+      setStatus('Рендер друкарського PDF (вектор, CMYK, preflight)…');
+      try {
+        const res = await fetch('/api/render', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(currentCanvasJSON),   // той самий CanvasJSON, що й у превью
+        });
+        if (res.status === 422) {
+          const rep = await res.json();
+          setStatus('Потрібна людина: ' + rep.issues.map(i => i.code).join(', '), 'err');
+          return;
+        }
+        if (!res.ok) throw new Error('render failed (' + res.status + ')');
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'vektralogos-print.pdf';
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+        setStatus('Print-ready PDF завантажено ✓', 'ok');
+      } catch (e) {
+        setStatus('Помилка: ' + e.message, 'err');
+      } finally {
+        $('download').disabled = false;
+      }
+    }
+
+    $('generate').addEventListener('click', generate);
+    $('download').addEventListener('click', download);
+  </script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-.PHONY: venv install render prompt test clean fetch-icc
+.PHONY: venv install render prompt serve test clean fetch-icc
 
 ICC_URL  := https://eci.org/lib/exe/eci_offset_2009.zip
 ICC_FILE := server/icc/ISOcoated_v2_eci.icc
@@ -33,6 +33,12 @@ fetch-icc:
 	rm -f /tmp/eci_offset_2009.zip
 	@echo "Done: $(ICC_FILE)"
 	@echo "Тепер додай у .env:  PRINT_ICC_PROFILE=$(CURDIR)/$(ICC_FILE)"
+
+# Editor MVP: локальний редактор у браузері (prompt -> превью -> print-ready PDF).
+# Відкрий http://127.0.0.1:8000. Потрібен ANTHROPIC_API_KEY у .env для /api/brief.
+PORT ?= 8000
+serve:
+	$(PY) -m uvicorn server.api:app --host 127.0.0.1 --port $(PORT) --reload
 
 test:
 	$(PY) -m pytest -q

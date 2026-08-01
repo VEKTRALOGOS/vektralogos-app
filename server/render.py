@@ -248,3 +248,49 @@ def render(spec: CanvasJSON) -> bytes:
     """
     rgb_pdf = render_vector_pdf(spec)
     return to_cmyk_pdf(rgb_pdf)
+
+
+def render_preview_png(spec: CanvasJSON, *, dpi: int = 150) -> bytes:
+    """Canvas JSON -> растровий PNG-прев'ю (тільки для екрану, guardrail §4 п.2).
+
+    Растеризує ТОЙ САМИЙ векторний PDF (render_vector_pdf), що йде у друк, через
+    той самий системний Ghostscript. Один рендер-шлях: прев'ю не має власної
+    логіки малювання — це кадр із того ж вектора (той самий CanvasJSON, ті самі
+    контури шрифту), тільки растр. Друкарський файл лишається вектором/CMYK.
+    """
+    import os
+    import shutil
+    import subprocess
+    import tempfile
+
+    gs = shutil.which("gs") or shutil.which("gswin64c") or shutil.which("gswin32c")
+    if gs is None:
+        raise RuntimeError(
+            "Ghostscript не знайдено у PATH. Встанови: brew install ghostscript"
+        )
+    rgb_pdf = render_vector_pdf(spec)
+    with tempfile.TemporaryDirectory(prefix="vektralogos_prev_") as tmp:
+        in_pdf = os.path.join(tmp, "in.pdf")
+        out_png = os.path.join(tmp, "out.png")
+        with open(in_pdf, "wb") as fh:
+            fh.write(rgb_pdf)
+        cmd = [
+            gs,
+            "-dSAFER",
+            "-dBATCH",
+            "-dNOPAUSE",
+            "-sDEVICE=png16m",
+            "-dTextAlphaBits=4",
+            "-dGraphicsAlphaBits=4",
+            f"-r{dpi}",
+            f"-sOutputFile={out_png}",
+            in_pdf,
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        if proc.returncode != 0 or not os.path.exists(out_png):
+            raise RuntimeError(
+                "Ghostscript (png-прев'ю) завершився з помилкою "
+                f"(код {proc.returncode}).\nSTDERR:\n{proc.stderr}"
+            )
+        with open(out_png, "rb") as fh:
+            return fh.read()

@@ -20,5 +20,10 @@ rank_bm25==0.2.2       # keyword-скоринг (BM25) по markdown-чанка�
 # --- Product Graph (Фаза 2): LangGraph StateGraph ---
 langgraph==1.2.10      # оркестрація графом; MemorySaver для checkpoints (2a/2b)
 
+# --- Editor MVP (feat/editor-mvp): тонкий HTTP-шар над трактом Ф0–Ф1 ---
+fastapi==0.115.6       # ендпоінти /api/brief|canvas|render|preview (обгортка, не новий pipeline)
+uvicorn[standard]==0.34.0  # ASGI-сервер для локального запуску редактора
+python-multipart==0.0.20   # form/file-парсинг для FastAPI
+
 # --- Тести ---
 pytest==8.4.2          # по тесту на кожен інваріант (§4 CLAUDE.md)
